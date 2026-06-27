@@ -1,0 +1,17 @@
+{
+  "name": "uneg-link",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "db:seed": "cd server && npm run prisma:seed",
+    "db:push": "cd server && npx prisma db push",
+    "setup": "cd server && npm install && npx prisma generate && npx prisma db push && node prisma/seed.js && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(uuid())
+  nombre      String
+  cedula      String       @unique
+  password    String
+  role        String       @default("ESTUDIANTE")
+  createdAt   DateTime     @default(now())
+  messages    Message[]
+  files       File[]
+  quizzes     Quiz[]
+  quizAttempts QuizAttempt[]
+  enrollments Enrollment[]
+  taughtSubjects SectionSubject[] @relation("ProfessorAssignments")
+}
+
+model Subject {
+  id        String          @id @default(uuid())
+  nombre    String
+  codigo    String          @unique
+  createdAt DateTime        @default(now())
+  sectionSubjects SectionSubject[]
+}
+
+model Section {
+  id        String          @id @default(uuid())
+  nombre    String
+  codigo    String          @unique
+  year      Int             @default(2026)
+  semester  String          @default("1")
+  createdAt DateTime        @default(now())
+  sectionSubjects SectionSubject[]
+}
+
+model SectionSubject {
+  id              String          @id @default(uuid())
+  sectionId       String
+  section         Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subjectId       String
+  subject         Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  profesorId      String
+  profesor        User            @relation("ProfessorAssignments", fields: [profesorId], references: [id])
+  channels        Channel[]
+  files           File[]
+  events          CalendarEvent[]
+  quizzes         Quiz[]
+  enrollments     Enrollment[]
+  createdAt       DateTime        @default(now())
+
+  @@unique([sectionId, subjectId])
+}
+
+model Enrollment {
+  id               String         @id @default(uuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+
+  @@unique([userId, sectionSubjectId])
+}
+
+model Channel {
+  id               String      @id @default(uuid())
+  nombre           String
+  tipo             String      @default("TEXTO")
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  messages         Message[]
+  createdAt        DateTime    @default(now())
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  contenido    String
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  channelId    String
+  channel      Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  fileUrl      String?
+  fileType     String?
+  fileName     String?
+  isRelevant   Boolean  @default(true)
+  isAI         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model File {
+  id               String        @id @default(uuid())
+  nombre           String
+  url              String
+  tipo             String
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  uploadedBy       String
+  user             User          @relation(fields: [uploadedBy], references: [id])
+  createdAt        DateTime      @default(now())
+}
+
+model Quiz {
+  id               String        @id @default(uuid())
+  titulo           String
+  descripcion      String?
+  maxAttempts      Int           @default(1)
+  timeLimit        Int?
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  createdBy        String
+  user             User          @relation(fields: [createdBy], references: [id])
+  questions        String
+  attempts         QuizAttempt[]
+  createdAt        DateTime      @default(now())
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  answers     String
+  results     String?
+  score       Float?
+  startedAt   DateTime @default(now())
+  submittedAt DateTime?
+}
+
+model CalendarEvent {
+  id               String        @id @default(uuid())
+  titulo           String
+  descripcion      String?
+  fecha            DateTime
+  tipo             String
+  importante       Boolean       @default(false)
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime      @default(now())
+}
