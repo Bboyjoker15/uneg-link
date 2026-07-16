@@ -59,4 +59,77 @@ router.delete('/:sectionSubjectId', authenticate, async (req, res) => {
   }
 })
 
+router.get('/:sectionSubjectId/members', authenticate, async (req, res) => {
+  try {
+    const { sectionSubjectId } = req.params
+
+    const sectionSubject = await prisma.sectionSubject.findUnique({
+      where: { id: sectionSubjectId },
+      include: { profesor: { select: { id: true, nombre: true, cedula: true, avatar: true, role: true, carrera: true, semestre: true, bio: true } } }
+    })
+    if (!sectionSubject) return res.status(404).json({ error: 'Materia no encontrada' })
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { sectionSubjectId },
+      include: {
+        user: {
+          select: { id: true, nombre: true, cedula: true, avatar: true, role: true, carrera: true, semestre: true, bio: true, email: true, telefono: true }
+        }
+      }
+    })
+
+    const isProfesor = req.user.role === 'PROFESOR' && sectionSubject.profesorId === req.user.id
+
+    const members = enrollments.map(e => {
+      const u = e.user
+      if (isProfesor) {
+        return { id: u.id, nombre: u.nombre, cedula: u.cedula, avatar: u.avatar, role: u.role, carrera: u.carrera, semestre: u.semestre, bio: u.bio, email: u.email, telefono: u.telefono }
+      }
+      return { id: u.id, nombre: u.nombre, cedula: u.cedula, avatar: u.avatar, role: u.role, carrera: u.carrera, semestre: u.semestre, bio: u.bio }
+    })
+
+    res.json({
+      profesor: sectionSubject.profesor,
+      students: members,
+      total: members.length + 1
+    })
+  } catch (error) {
+    console.error('Get members error:', error)
+    res.status(500).json({ error: 'Error al obtener miembros' })
+  }
+})
+
+router.delete('/:sectionSubjectId/remove/:userId', authenticate, async (req, res) => {
+  try {
+    const { sectionSubjectId, userId } = req.params
+
+    const sectionSubject = await prisma.sectionSubject.findUnique({
+      where: { id: sectionSubjectId }
+    })
+    if (!sectionSubject) return res.status(404).json({ error: 'Materia no encontrada' })
+
+    if (sectionSubject.profesorId !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el profesor puede eliminar estudiantes' })
+    }
+
+    if (userId === req.user.id) {
+      return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' })
+    }
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { userId_sectionSubjectId: { userId, sectionSubjectId } }
+    })
+    if (!enrollment) {
+      return res.status(404).json({ error: 'El estudiante no está inscrito' })
+    }
+
+    await prisma.enrollment.delete({ where: { id: enrollment.id } })
+
+    res.json({ message: 'Estudiante eliminado de la materia' })
+  } catch (error) {
+    console.error('Remove member error:', error)
+    res.status(500).json({ error: 'Error al eliminar estudiante' })
+  }
+})
+
 export default router

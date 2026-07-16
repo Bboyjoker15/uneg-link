@@ -9,12 +9,19 @@ import QuizCreator from '../components/QuizCreator'
 import QuizTaker from '../components/QuizTaker'
 import QuizResults from '../components/QuizResults'
 import OfflineBanner from '../components/OfflineBanner'
-import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft } from 'react-icons/fi'
+import NotificationBell from '../components/NotificationBell'
+import PublicProfile from '../components/PublicProfile'
+import AssignmentView from '../components/AssignmentView'
+import GradeView from '../components/GradeView'
+import Profile from './Profile'
+import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft, FiStar, FiX, FiTrendingUp } from 'react-icons/fi'
 
 const SUB_TABS = [
   { key: 'chat', label: 'Chat', icon: FiHash },
   { key: 'files', label: 'Archivos', icon: FiFile },
+  { key: 'assignments', label: 'Tareas', icon: FiPaperclip },
   { key: 'calendar', label: 'Calendario', icon: FiCalendar },
+  { key: 'grades', label: 'Notas', icon: FiTrendingUp },
   { key: 'quizzes', label: 'Quizzes', icon: FiCheckSquare }
 ]
 
@@ -123,9 +130,9 @@ function HomeOverview({ subjects, overview }) {
 }
 
 export default function Dashboard() {
-  const { user, logout } = useAuth()
+  const { user, logout, setUser } = useAuth()
   const { theme, toggle } = useTheme()
-  const { connected } = useSocket()
+  const { socket, connected } = useSocket()
   const navigate = useNavigate()
 
   const [subjects, setSubjects] = useState([])
@@ -144,6 +151,12 @@ export default function Dashboard() {
   const [activeQuiz, setActiveQuiz] = useState(null)
   const [quizAttemptResult, setQuizAttemptResult] = useState(null)
   const [quizAttempts, setQuizAttempts] = useState([])
+  const [showProfile, setShowProfile] = useState(false)
+  const [sidebarView, setSidebarView] = useState('channels')
+  const [members, setMembers] = useState([])
+  const [membersProfesor, setMembersProfesor] = useState(null)
+  const [publicProfileUserId, setPublicProfileUserId] = useState(null)
+  const [loadingMembers, setLoadingMembers] = useState(false)
 
   useEffect(() => {
     loadSubjects()
@@ -156,6 +169,12 @@ export default function Dashboard() {
       loadQuizzes()
     }
   }, [activeSubject])
+
+  useEffect(() => {
+    if (activeSubject && sidebarView === 'members') {
+      loadMembers()
+    }
+  }, [activeSubject, sidebarView])
 
   const loadSubjects = async () => {
     try {
@@ -189,6 +208,20 @@ export default function Dashboard() {
       setEvents(res.data)
     } catch (err) {
       console.error('Error loading events:', err)
+    }
+  }
+
+  const loadMembers = async () => {
+    if (!activeSubject) return
+    setLoadingMembers(true)
+    try {
+      const res = await api.get(`/enrollments/${activeSubject.id}/members`)
+      setMembers(res.data.students)
+      setMembersProfesor(res.data.profesor)
+    } catch (err) {
+      console.error('Error loading members:', err)
+    } finally {
+      setLoadingMembers(false)
     }
   }
 
@@ -305,7 +338,36 @@ export default function Dashboard() {
     setActiveSubject(subject)
     setActiveChannel(subject.channels?.[0] || null)
     setActiveTab('chat')
+    setSidebarView('channels')
     setError('')
+  }
+
+  const handleNotificationClick = async (n) => {
+    if (!n.link) return
+    const parts = n.link.split('/')
+    if (parts[1] === 'channel' && parts[2]) {
+      for (const subject of subjects) {
+        const channel = subject.channels?.find(c => c.id === parts[2])
+        if (channel) {
+          selectSubject(subject)
+          setActiveChannel(channel)
+          setActiveTab('chat')
+          return
+        }
+      }
+    } else if (parts[1] === 'assignments' && parts[2]) {
+      try {
+        const res = await api.get(`/assignments/${parts[2]}/section`)
+        const { sectionSubjectId } = res.data
+        const subject = subjects.find(s => s.id === sectionSubjectId)
+        if (subject) {
+          selectSubject(subject)
+          setActiveTab('assignments')
+        }
+      } catch (err) {
+        console.error('Error navigating from notification:', err)
+      }
+    }
   }
 
   if (!user) return null
@@ -313,32 +375,40 @@ export default function Dashboard() {
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
       <OfflineBanner />
-      <header className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white text-sm font-bold">UL</span>
-          </div>
-          <h1 className="text-lg font-bold text-[var(--color-text-primary)]">Uneg-Link</h1>
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-              {user.nombre?.[0]}
+        <header className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
+          <button onClick={() => setShowProfile(false)} className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm font-bold">UL</span>
             </div>
-            <div className="text-sm">
-              <p className="font-medium text-[var(--color-text-primary)] leading-tight">{user.nombre}</p>
-              <p className="text-xs text-[var(--color-text-secondary)]">{user.role === 'PROFESOR' ? 'Profesor' : 'Estudiante'}</p>
-            </div>
+            <h1 className="text-lg font-bold text-[var(--color-text-primary)]">Uneg-Link</h1>
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors"
+            >
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+                {user.avatar ? (
+                  <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  user.nombre?.[0]
+                )}
+              </div>
+              <div className="text-sm text-left">
+                <p className="font-medium leading-tight">{user.nombre}</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">{user.role === 'PROFESOR' ? 'Profesor' : 'Estudiante'}</p>
+              </div>
+            </button>
+            <NotificationBell socket={socket} onNotificationClick={handleNotificationClick} />
+            <button onClick={toggle} className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors">
+              {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
+            </button>
+            <button onClick={handleLogout} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors">
+              <FiLogOut size={18} />
+            </button>
           </div>
-          <button onClick={toggle} className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors">
-            {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
-          </button>
-          <button onClick={handleLogout} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors">
-            <FiLogOut size={18} />
-          </button>
-        </div>
-      </header>
+        </header>
 
       <div className="flex items-center gap-1 px-6 py-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] overflow-x-auto">
         <button
@@ -369,7 +439,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {activeTab !== 'home' && activeSubject && (
+      {showProfile ? null : activeTab !== 'home' && activeSubject && (
         <div className="flex items-center gap-1 px-6 py-1.5 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
           {SUB_TABS.map(tab => (
             <button
@@ -389,73 +459,182 @@ export default function Dashboard() {
       )}
 
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {activeTab !== 'home' && activeSubject && (
+        {showProfile ? (
+          <Profile onBack={() => setShowProfile(false)} />
+        ) : activeTab !== 'home' && activeSubject && (
           <aside className="w-60 border-r border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)]">
-              <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Canales</h3>
-              {user?.role === 'PROFESOR' && connected && (
-                <button
-                  onClick={() => { setShowNewChannel(!showNewChannel); setError('') }}
-                  className="p-1 rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                >
-                  <FiPlus size={16} />
-                </button>
-              )}
+            <div className="flex border-b border-[var(--color-border-default)]">
+              <button
+                onClick={() => setSidebarView('channels')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center transition-colors ${
+                  sidebarView === 'channels'
+                    ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                }`}
+              >
+                Canales
+              </button>
+              <button
+                onClick={() => setSidebarView('members')}
+                className={`flex-1 px-3 py-2 text-xs font-medium text-center transition-colors ${
+                  sidebarView === 'members'
+                    ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                }`}
+              >
+                Miembros
+              </button>
             </div>
 
-            {showNewChannel && (
-              <form onSubmit={handleCreateChannel} className="px-4 py-2 border-b border-[var(--color-border-default)]">
-                <input
-                  type="text"
-                  value={newChannelName}
-                  onChange={e => setNewChannelName(e.target.value)}
-                  placeholder="Nombre del canal"
-                  className="w-full px-3 py-1.5 text-sm rounded border border-[var(--color-border-default)] bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-blue-500 mb-2"
-                  autoFocus
-                />
-                {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
-                <div className="flex gap-1">
-                  <button type="submit" className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Crear</button>
-                  <button type="button" onClick={() => { setShowNewChannel(false); setError('') }} className="px-2 py-1 text-xs border border-[var(--color-border-default)] rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]">Cancelar</button>
-                </div>
-              </form>
-            )}
-
-            <div className="flex-1 overflow-y-auto py-2">
-              {activeSubject?.channels?.map(channel => (
-                <div key={channel.id} className="group flex items-center">
-                  <button
-                    onClick={() => { setActiveChannel(channel); setActiveTab('chat') }}
-                    className={`flex-1 flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
-                      activeChannel?.id === channel.id
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-medium'
-                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]'
-                    }`}
-                  >
-                    <FiHash size={14} />
-                    <span className="truncate">{channel.nombre}</span>
-                  </button>
+            {sidebarView === 'channels' && (
+              <>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)]">
+                  <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Canales</h3>
                   {user?.role === 'PROFESOR' && connected && (
                     <button
-                      onClick={() => handleDeleteChannel(channel.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 mr-2 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-all"
+                      onClick={() => { setShowNewChannel(!showNewChannel); setError('') }}
+                      className="p-1 rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                     >
-                      <FiTrash2 size={12} />
+                      <FiPlus size={16} />
                     </button>
                   )}
                 </div>
-              ))}
-            </div>
+
+                {showNewChannel && (
+                  <form onSubmit={handleCreateChannel} className="px-4 py-2 border-b border-[var(--color-border-default)]">
+                    <input
+                      type="text"
+                      value={newChannelName}
+                      onChange={e => setNewChannelName(e.target.value)}
+                      placeholder="Nombre del canal"
+                      className="w-full px-3 py-1.5 text-sm rounded border border-[var(--color-border-default)] bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-blue-500 mb-2"
+                      autoFocus
+                    />
+                    {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+                    <div className="flex gap-1">
+                      <button type="submit" className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Crear</button>
+                      <button type="button" onClick={() => { setShowNewChannel(false); setError('') }} className="px-2 py-1 text-xs border border-[var(--color-border-default)] rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]">Cancelar</button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="flex-1 overflow-y-auto py-2">
+                  {activeSubject?.channels?.map(channel => (
+                    <div key={channel.id} className="group flex items-center">
+                      <button
+                        onClick={() => { setActiveChannel(channel); setActiveTab('chat') }}
+                        className={`flex-1 flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                          activeChannel?.id === channel.id
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-medium'
+                            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]'
+                        }`}
+                      >
+                        <FiHash size={14} />
+                        <span className="truncate">{channel.nombre}</span>
+                      </button>
+                      {user?.role === 'PROFESOR' && connected && (
+                        <button
+                          onClick={() => handleDeleteChannel(channel.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 mr-2 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-all"
+                        >
+                          <FiTrash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {sidebarView === 'members' && (
+              <div className="flex-1 overflow-y-auto py-3">
+                {loadingMembers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                  </div>
+                ) : (
+                  <>
+                    {membersProfesor && (
+                      <div className="px-4 mb-3">
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] font-semibold mb-2">Profesor</p>
+                        <button
+                          onClick={() => setPublicProfileUserId(membersProfesor.id)}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors text-left"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden flex-shrink-0">
+                            {membersProfesor.avatar ? (
+                              <img src={membersProfesor.avatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <FiStar size={14} />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{membersProfesor.nombre}</p>
+                            <p className="text-[10px] text-[var(--color-text-secondary)]">Profesor</p>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                    <div className="px-4">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] font-semibold mb-2">
+                        Estudiantes ({members.length})
+                      </p>
+                    </div>
+                    {members.map(member => (
+                      <div key={member.id} className="group flex items-center px-4">
+                        <button
+                          onClick={() => setPublicProfileUserId(member.id)}
+                          className="flex-1 flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors text-left"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden flex-shrink-0">
+                            {member.avatar ? (
+                              <img src={member.avatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              member.nombre?.[0]
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{member.nombre}</p>
+                            <p className="text-[10px] text-[var(--color-text-secondary)]">{member.cedula}</p>
+                          </div>
+                        </button>
+                        {user?.role === 'PROFESOR' && membersProfesor?.id === user.id && connected && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`¿Eliminar a ${member.nombre} de esta materia?`)) return
+                              try {
+                                await api.delete(`/enrollments/${activeSubject.id}/remove/${member.id}`)
+                                loadMembers()
+                              } catch (err) {
+                                console.error('Error removing member:', err)
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-all"
+                            title="Eliminar de la materia"
+                          >
+                            <FiX size={12} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
           </aside>
         )}
 
-        <main className="flex-1 flex flex-col min-h-0">
-          {activeTab === 'home' && (
+        {publicProfileUserId && (
+          <PublicProfile userId={publicProfileUserId} onBack={() => setPublicProfileUserId(null)} />
+        )}
+        {!showProfile && !publicProfileUserId && (
+          <main className="flex-1 flex flex-col min-h-0">
+            {activeTab === 'home' && (
             <HomeOverview subjects={subjects} />
           )}
 
           {activeTab === 'chat' && (
-            <ChatArea channel={activeChannel} sectionSubjectId={activeSubject?.id} />
+            <ChatArea channel={activeChannel} sectionSubjectId={activeSubject?.id} onViewProfile={(id) => setPublicProfileUserId(id)} />
           )}
 
           {activeTab === 'files' && (
@@ -611,6 +790,14 @@ export default function Dashboard() {
             </div>
           )}
 
+          {activeTab === 'assignments' && (
+            <AssignmentView sectionSubjectId={activeSubject?.id} connected={connected} onViewProfile={(id) => setPublicProfileUserId(id)} />
+          )}
+
+          {activeTab === 'grades' && (
+            <GradeView sectionSubjectId={activeSubject?.id} onViewProfile={(id) => setPublicProfileUserId(id)} />
+          )}
+
           {activeTab === 'quizzes' && (
             quizView === 'create' ? (
               <div className="flex-1 p-6 overflow-y-auto">
@@ -655,7 +842,12 @@ export default function Dashboard() {
                     {quizAttempts.map(a => (
                       <div key={a.id} className="flex items-center gap-4 p-4 rounded-xl border border-[var(--color-border-default)]">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-[var(--color-text-primary)]">{a.userName}</p>
+                          <button
+                            onClick={() => setPublicProfileUserId(a.userId)}
+                            className="font-medium text-sm text-[var(--color-text-primary)] hover:underline text-left"
+                          >
+                            {a.userName}
+                          </button>
                           <p className="text-xs text-[var(--color-text-secondary)]">{a.cedula}</p>
                           <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                             {new Date(a.submittedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -768,6 +960,7 @@ export default function Dashboard() {
             )
           )}
         </main>
+      )}
       </div>
     </div>
   )

@@ -8,18 +8,41 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(uuid())
-  nombre      String
-  cedula      String       @unique
-  password    String
-  role        String       @default("ESTUDIANTE")
-  createdAt   DateTime     @default(now())
-  messages    Message[]
-  files       File[]
-  quizzes     Quiz[]
-  quizAttempts QuizAttempt[]
-  enrollments Enrollment[]
-  taughtSubjects SectionSubject[] @relation("ProfessorAssignments")
+  id              String       @id @default(uuid())
+  nombre          String
+  cedula          String       @unique
+  password        String
+  email           String?
+  telefono        String?
+  avatar          String?
+  carrera         String?
+  semestre        String?
+  fechaNacimiento DateTime?
+  direccion       String?
+  bio             String?
+  role            String       @default("ESTUDIANTE")
+  createdAt       DateTime     @default(now())
+  messages        Message[]
+  files           File[]
+  quizzes         Quiz[]
+  quizAttempts    QuizAttempt[]
+  enrollments     Enrollment[]
+  taughtSubjects  SectionSubject[] @relation("ProfessorAssignments")
+  notifications   Notification[]
+  submissions     AssignmentSubmission[]
+  resetTokens     PasswordResetToken[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 model Subject {
@@ -53,6 +76,7 @@ model SectionSubject {
   events          CalendarEvent[]
   quizzes         Quiz[]
   enrollments     Enrollment[]
+  assignments     Assignment[]
   createdAt       DateTime        @default(now())
 
   @@unique([sectionId, subjectId])
@@ -144,4 +168,43 @@ model CalendarEvent {
   sectionSubjectId String
   sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
   createdAt        DateTime      @default(now())
+}
+
+model Assignment {
+  id               String       @id @default(uuid())
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  titulo           String
+  descripcion      String?
+  fechaLimite      DateTime?
+  archivoUrl       String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  submissions      AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(uuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  archivoUrl   String
+  comentario   String?
+  nota         Float?
+  feedback     String?
+  submittedAt  DateTime   @default(now())
+  gradedAt     DateTime?
+
+  @@unique([assignmentId, userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { FiSend, FiPaperclip, FiCpu, FiDownload, FiVolume2, FiEdit3 } from 'react-icons/fi'
 
-export default function ChatArea({ channel, sectionSubjectId }) {
+export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [file, setFile] = useState(null)
@@ -12,6 +12,7 @@ export default function ChatArea({ channel, sectionSubjectId }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [consultAI, setConsultAI] = useState(false)
   const [typingUsers, setTypingUsers] = useState([])
+  const typingTimeoutRef = useRef({})
   const [announceMode, setAnnounceMode] = useState('off')
   const [customAnnouncement, setCustomAnnouncement] = useState('')
   const [aiPrompt, setAiPrompt] = useState('')
@@ -51,11 +52,17 @@ export default function ChatArea({ channel, sectionSubjectId }) {
     }
     const handleTyping = (data) => {
       if (data.userId !== user.id) {
-        setTypingUsers(prev => prev.includes(data.nombre) ? prev : [...prev, data.nombre])
+        setTypingUsers(prev => prev.map(u =>
+          u.userId === data.userId
+            ? { ...u, timestamp: Date.now() }
+            : u
+        ).concat(
+          prev.some(u => u.userId === data.userId) ? [] : [{ userId: data.userId, nombre: data.nombre, timestamp: Date.now() }]
+        ))
       }
     }
     const handleStopTyping = (data) => {
-      setTypingUsers(prev => prev.filter(n => n !== data.nombre))
+      setTypingUsers(prev => prev.filter(u => u.userId !== data.userId))
     }
 
     socket.on('new-message', handleNewMessage)
@@ -75,6 +82,15 @@ export default function ChatArea({ channel, sectionSubjectId }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (typingUsers.length === 0) return
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setTypingUsers(prev => prev.filter(u => now - u.timestamp < 4000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [typingUsers.length])
 
   const loadMessages = async () => {
     try {
@@ -131,11 +147,21 @@ export default function ChatArea({ channel, sectionSubjectId }) {
     }
   }
 
-  const handleTyping = () => {
-    if (socket && input) {
-      socket.emit('typing', { channelId: channel.id })
-    } else if (socket) {
+  const typingEmitRef = useRef(null)
+  const handleTypingEmit = () => {
+    if (!socket) return
+    if (input) {
+      if (!typingEmitRef.current) {
+        socket.emit('typing', { channelId: channel.id })
+      }
+      clearTimeout(typingEmitRef.current)
+      typingEmitRef.current = setTimeout(() => {
+        typingEmitRef.current = null
+      }, 3000)
+    } else {
       socket.emit('stop-typing', { channelId: channel.id })
+      clearTimeout(typingEmitRef.current)
+      typingEmitRef.current = null
     }
   }
 
@@ -244,7 +270,12 @@ export default function ChatArea({ channel, sectionSubjectId }) {
                 }`}>
                   {!isOwn && !msg.isAI && (
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
-                      {msg.user?.nombre}
+                      <button
+                        onClick={() => onViewProfile?.(msg.user.id)}
+                        className="hover:underline"
+                      >
+                        {msg.user?.nombre}
+                      </button>
                       {msg.user?.role === 'PROFESOR' && <span className="ml-1 text-yellow-500">●</span>}
                     </p>
                   )}
@@ -308,7 +339,9 @@ export default function ChatArea({ channel, sectionSubjectId }) {
 
       {typingUsers.length > 0 && (
         <div className="px-6 py-1 text-xs text-[var(--color-text-secondary)] italic">
-          {typingUsers.join(', ')} {typingUsers.length === 1 ? 'está' : 'están'} escribiendo...
+          {typingUsers.slice(0, 2).map(u => u.nombre).join(', ')}
+          {typingUsers.length > 2 && ` y ${typingUsers.length - 2} más`}
+          {' '}{typingUsers.length === 1 ? 'está' : 'están'} escribiendo...
         </div>
       )}
 
@@ -430,7 +463,7 @@ export default function ChatArea({ channel, sectionSubjectId }) {
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      onKeyUp={handleTyping}
+                      onKeyUp={handleTypingEmit}
                       placeholder={
                         consultAI
                           ? 'Pregúntale a UnegAI...'

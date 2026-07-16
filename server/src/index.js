@@ -16,6 +16,10 @@ import quizRoutes from './routes/quizzes.js'
 import calendarRoutes from './routes/calendar.js'
 import aiRoutes from './routes/ai.js'
 import enrollmentRoutes from './routes/enrollments.js'
+import profileRoutes from './routes/profile.js'
+import notificationRoutes from './routes/notifications.js'
+import assignmentRoutes from './routes/assignments.js'
+import gradeRoutes from './routes/grades.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -44,12 +48,16 @@ app.use('/api/quizzes', quizRoutes)
 app.use('/api/calendar', calendarRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/enrollments', enrollmentRoutes)
+app.use('/api/profile', profileRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/assignments', assignmentRoutes)
+app.use('/api/grades', gradeRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-setupChatSocket(io)
+setupChatSocket(io, app)
 
 httpServer.listen(config.port, () => {
   console.log(`🚀 Servidor Uneg-Link corriendo en http://localhost:${config.port}`)

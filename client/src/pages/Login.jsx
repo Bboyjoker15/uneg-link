@@ -8,6 +8,7 @@ export default function Login() {
   const [cedula, setCedula] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -19,7 +20,7 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(cedula, password)
+      await login(cedula, password, rememberMe)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.error || 'Error al iniciar sesión')
@@ -59,7 +60,18 @@ export default function Login() {
               <input
                 type="text"
                 value={cedula}
-                onChange={e => setCedula(e.target.value)}
+                onFocus={e => { if (!cedula) setCedula('V-') }}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '' || raw === 'V') { setCedula('') }
+                  else if (raw.startsWith('V-')) {
+                    const nums = raw.slice(2).replace(/[^0-9]/g, '')
+                    setCedula('V-' + nums)
+                  } else {
+                    const nums = raw.replace(/[^0-9]/g, '')
+                    setCedula(nums ? 'V-' + nums : '')
+                  }
+                }}
                 placeholder="V-12345678"
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
@@ -83,6 +95,25 @@ export default function Login() {
                   {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                 </button>
               </div>
+            </div>
+
+            <div className="mb-6 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-[var(--color-border-default)] text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="rememberMe" className="text-sm text-[var(--color-text-secondary)] cursor-pointer select-none">
+                Recordarme por 30 días
+              </label>
+            </div>
+
+            <div className="text-right mb-4">
+              <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                ¿Olvidaste tu contraseña?
+              </Link>
             </div>
 
             <button

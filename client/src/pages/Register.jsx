@@ -85,8 +85,19 @@ export default function Register() {
               <input
                 type="text"
                 value={cedula}
-                onChange={e => setCedula(e.target.value)}
-                placeholder="V-30123456"
+                onFocus={e => { if (!cedula) setCedula('V-') }}
+                onChange={e => {
+                  const raw = e.target.value
+                  if (raw === '' || raw === 'V') { setCedula('') }
+                  else if (raw.startsWith('V-')) {
+                    const nums = raw.slice(2).replace(/[^0-9]/g, '')
+                    setCedula('V-' + nums)
+                  } else {
+                    const nums = raw.replace(/[^0-9]/g, '')
+                    setCedula(nums ? 'V-' + nums : '')
+                  }
+                }}
+                placeholder="V-12345678"
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
               />
