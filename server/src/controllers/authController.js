@@ -7,14 +7,7 @@ import { sendPasswordResetEmail } from '../services/emailService.js'
 
 const prisma = new PrismaClient()
 
-const CEDULAS_VALIDAS = [
-  'V-12345678',
-  ...Array.from({ length: 40 }, (_, i) => `V-${20000000 + i}`),
-  ...Array.from({ length: 50 }, (_, i) => `V-${30100000 + i}`),
-  ...Array.from({ length: 450 }, (_, i) => `V-${30200000 + i}`),
-  'V-26592592',
-  'V-30932462'
-]
+const CEDULA_REGEX = /^V-\d{7,8}$/
 
 function normalizarCedula(val) {
   const nums = val.replace(/[^0-9]/g, '')
@@ -30,8 +23,8 @@ export async function register(req, res) {
       return res.status(400).json({ error: 'Todos los campos son requeridos' })
     }
 
-    if (!CEDULAS_VALIDAS.includes(cedula)) {
-      return res.status(400).json({ error: 'Cédula no registrada en el sistema universitario' })
+    if (!CEDULA_REGEX.test(cedula)) {
+      return res.status(400).json({ error: 'Formato de cédula inválido (debe ser V- seguido de 7 u 8 dígitos)' })
     }
 
     const existing = await prisma.user.findUnique({ where: { cedula } })

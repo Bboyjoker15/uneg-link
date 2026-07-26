@@ -1,0 +1,53 @@
+=========================================================
+  LISTA PRIORIZADA — Uneg-Link
+=========================================================
+
+FASE 1 — AJUSTES CRÍTICOS
+---------------------------------------------------------
+[x] 1. Límite 5MB en archivos
+       Bajar de 10MB a 5MB la subida de archivos
+[x] 2. Cédula solo para profesores
+       Ocultar cédula de estudiantes a otros estudiantes,
+       visible solo para el profesor de la materia
+[x] 3. Limitar contenido IA
+       Máximo de caracteres/tokens en respuestas de IA
+[x] 4. Confirmación anuncios IA
+       Preview antes de publicar anuncios generados por IA
+[x] 5. Ocultar mensajes IA
+       Colapsar por defecto, toggle para verlos (no saturar)
+
+FASE 2 — ROLES Y VISIBILIDAD
+---------------------------------------------------------
+[x] 6. Roles: Delegado, Preparador, Vocero
+       Agregar sub-roles al User y asignación por materia
+[x] 7. Label de rol visible
+       Mostrar el rol en perfiles, chat, miembros, notas
+[x] 8. Buscador de alumnos
+       Buscar por cédula o nombre desde el panel profesor
+[x] 9. Refinar registro
+       Coincidir criterios de validación de cédulas
+
+FASE 3 — CALIDAD DE VIDA
+---------------------------------------------------------
+[x] 10. Responsive Dashboard
+        Adaptar la interfaz a móviles y tablets
+[x] 11. Foro de Discusión
+        Hilos con respuestas anidadas
+
+FASE 4 — NUEVAS FEATURES
+---------------------------------------------------------
+[x] 12. Mensajes Directos
+         Chat privado entre usuarios
+[x] 13. Grupos de Trabajo
+         Agrupación de estudiantes para proyectos
+[x] 14. Panel del Profesor
+         Estadísticas y dashboard profesoral
+[x] 15. Exportar Notas
+         Descargar como PDF/Excel
+
+FASE 5 — PRODUCCIÓN
+---------------------------------------------------------
+[ ] 16. Migración a Supabase
+         Cambiar SQLite → PostgreSQL
+[ ] 17. Definir cliente final
+         Web vs App móvil (decisión del equipo)

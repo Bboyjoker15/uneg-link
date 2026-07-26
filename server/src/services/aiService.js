@@ -24,6 +24,7 @@ REGLAS:
 - Si el estudiante pregunta algo fuera del ámbito académico, indícale cordialmente que no puedes ayudar con ese tema.`
 
 const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
+const MAX_RESPONSE_CHARS = 3000
 
 export async function generateAIResponse(messages, sectionSubjectId, question) {
   try {
@@ -101,7 +102,11 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
           max_tokens: 2048
         })
 
-        return completion.choices[0]?.message?.content || 'Lo siento, no pude procesar tu solicitud.'
+        let content = completion.choices[0]?.message?.content || 'Lo siento, no pude procesar tu solicitud.'
+        if (content.length > MAX_RESPONSE_CHARS) {
+          content = content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada por límite de caracteres]*'
+        }
+        return content
       } catch (error) {
         console.error(`Groq API error with model ${model}:`, error.message, error.status)
       }

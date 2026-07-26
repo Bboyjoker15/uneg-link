@@ -108,22 +108,7 @@ El anuncio debe ser en español, formal pero cercano, bien estructurado y listo 
       return res.status(500).json({ error: 'Error al generar el anuncio con la IA' })
     }
 
-    const message = await prisma.message.create({
-      data: {
-        contenido: aiContent,
-        userId: req.user.id,
-        channelId: channel.id,
-        isAI: true,
-        isRelevant: true
-      },
-      include: {
-        user: { select: { id: true, nombre: true, role: true } }
-      }
-    })
-
-    req.app.get('io').to(`channel-${channel.id}`).emit('new-message', message)
-
-    res.status(201).json(message)
+    res.json({ content: aiContent })
   } catch (error) {
     console.error('AI announcement error:', error)
     res.status(500).json({ error: 'Error al generar anuncio' })
@@ -226,6 +211,50 @@ Las respuestas deben ser precisas y correctas.`
   } catch (error) {
     console.error('AI generate quiz error:', error)
     res.status(500).json({ error: 'Error al generar quiz' })
+  }
+})
+
+router.post('/announcement/confirm', authenticate, requireRole('PROFESOR'), async (req, res) => {
+  try {
+    const { sectionSubjectId, content } = req.body
+
+    if (!sectionSubjectId || !content?.trim()) {
+      return res.status(400).json({ error: 'Materia y contenido requeridos' })
+    }
+
+    const sectionSubject = await prisma.sectionSubject.findUnique({
+      where: { id: sectionSubjectId },
+      include: {
+        channels: { where: { nombre: 'Anuncios' } }
+      }
+    })
+    if (!sectionSubject) return res.status(404).json({ error: 'Materia no encontrada' })
+    if (sectionSubject.profesorId !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el profesor puede publicar anuncios' })
+    }
+
+    const channel = sectionSubject.channels[0]
+    if (!channel) return res.status(404).json({ error: 'Canal de Anuncios no encontrado' })
+
+    const message = await prisma.message.create({
+      data: {
+        contenido: content,
+        userId: req.user.id,
+        channelId: channel.id,
+        isAI: true,
+        isRelevant: true
+      },
+      include: {
+        user: { select: { id: true, nombre: true, role: true } }
+      }
+    })
+
+    req.app.get('io').to(`channel-${channel.id}`).emit('new-message', message)
+
+    res.status(201).json(message)
+  } catch (error) {
+    console.error('AI confirm announcement error:', error)
+    res.status(500).json({ error: 'Error al publicar anuncio' })
   }
 })
 

@@ -71,6 +71,88 @@ export async function getGrades(req, res) {
   }
 }
 
+export async function exportGrades(req, res) {
+  try {
+    const { sectionSubjectId } = req.params
+
+    const sectionSubject = await prisma.sectionSubject.findUnique({
+      where: { id: sectionSubjectId },
+      include: { subject: true, section: true }
+    })
+    if (!sectionSubject) return res.status(404).json({ error: 'Materia no encontrada' })
+    if (sectionSubject.profesorId !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el profesor puede exportar' })
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { sectionSubjectId },
+      include: { user: { select: { id: true, nombre: true, cedula: true } } }
+    })
+
+    const quizzes = await prisma.quiz.findMany({
+      where: { sectionSubjectId },
+      select: { id: true, titulo: true }
+    })
+
+    const assignments = await prisma.assignment.findMany({
+      where: { sectionSubjectId },
+      select: { id: true, titulo: true }
+    })
+
+    const header = ['Cédula', 'Nombre']
+    for (const q of quizzes) header.push(`Quiz: ${q.titulo}`)
+    for (const a of assignments) header.push(`Tarea: ${a.titulo}`)
+    header.push('Promedio')
+
+    const rows = []
+
+    for (const enrollment of enrollments) {
+      const userQuizAttempts = await prisma.quizAttempt.findMany({
+        where: { userId: enrollment.user.id, quiz: { sectionSubjectId }, submittedAt: { not: null } },
+        select: { quizId: true, score: true }
+      })
+
+      const userSubmissions = await prisma.assignmentSubmission.findMany({
+        where: { userId: enrollment.user.id, assignment: { sectionSubjectId } },
+        select: { assignmentId: true, nota: true }
+      })
+
+      const row = [enrollment.user.cedula, enrollment.user.nombre]
+
+      const quizScores = quizzes.map(q => {
+        const attempts = userQuizAttempts.filter(a => a.quizId === q.id)
+        return attempts.length > 0 ? Math.max(...attempts.map(a => a.score)) : null
+      })
+
+      const assignmentScores = assignments.map(a => {
+        const sub = userSubmissions.find(s => s.assignmentId === a.id)
+        return sub ? sub.nota : null
+      })
+
+      const allScores = [...quizScores, ...assignmentScores].filter(s => s !== null)
+      const promedio = allScores.length > 0
+        ? Math.round(allScores.reduce((sum, s) => sum + s, 0) / allScores.length)
+        : null
+
+      for (const s of quizScores) row.push(s !== null ? Math.round(s) : '')
+      for (const s of assignmentScores) row.push(s !== null ? Math.round(s) : '')
+      row.push(promedio !== null ? `${promedio}%` : '')
+
+      rows.push(row)
+    }
+
+    const csvContent = [header.join(','), ...rows.map(r => r.map(c => `"${c ?? ''}"`).join(','))].join('\n')
+
+    const subjectName = `${sectionSubject.subject.nombre}-${sectionSubject.section.codigo}`
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename=notas-${subjectName}.csv`)
+    res.send('\uFEFF' + csvContent)
+  } catch (error) {
+    console.error('Export grades error:', error)
+    res.status(500).json({ error: 'Error al exportar' })
+  }
+}
+
 export async function getAllStudentGrades(req, res) {
   try {
     const { sectionSubjectId } = req.params

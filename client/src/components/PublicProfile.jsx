@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { FiArrowLeft, FiUser, FiBook, FiAward, FiStar, FiMail, FiPhone, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiUser, FiBook, FiAward, FiStar, FiMail, FiPhone, FiX, FiMessageCircle } from 'react-icons/fi'
 
-export default function PublicProfile({ userId, onBack }) {
+export default function PublicProfile({ userId, onBack, onSendMessage }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -48,6 +48,11 @@ export default function PublicProfile({ userId, onBack }) {
             <FiArrowLeft size={20} />
           </button>
           <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Perfil</h1>
+          {onSendMessage && (
+            <button onClick={() => onSendMessage(profile.id)} className="ml-auto p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors" title="Enviar mensaje">
+              <FiMessageCircle size={18} />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col items-center mb-8">

@@ -31,6 +31,11 @@ model User {
   notifications   Notification[]
   submissions     AssignmentSubmission[]
   resetTokens     PasswordResetToken[]
+  forumThreads    ForumThread[]
+  forumReplies    ForumReply[]
+  conversations  ConversationParticipant[]
+  directMessages DirectMessage[]
+  groupMembers   GroupMember[]
 }
 
 model Notification {
@@ -77,6 +82,8 @@ model SectionSubject {
   quizzes         Quiz[]
   enrollments     Enrollment[]
   assignments     Assignment[]
+  forumThreads    ForumThread[]
+  workingGroups   WorkingGroup[]
   createdAt       DateTime        @default(now())
 
   @@unique([sectionId, subjectId])
@@ -88,6 +95,7 @@ model Enrollment {
   user             User           @relation(fields: [userId], references: [id])
   sectionSubjectId String
   sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  subRole          String?
   createdAt        DateTime       @default(now())
 
   @@unique([userId, sectionSubjectId])
@@ -197,6 +205,83 @@ model AssignmentSubmission {
   gradedAt     DateTime?
 
   @@unique([assignmentId, userId])
+}
+
+model ForumThread {
+  id               String         @id @default(uuid())
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  titulo           String
+  contenido        String
+  pinned           Boolean        @default(false)
+  closed           Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  replies          ForumReply[]
+}
+
+model ForumReply {
+  id         String       @id @default(uuid())
+  threadId   String
+  thread     ForumThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  contenido  String
+  parentId   String?
+  parent     ForumReply?  @relation("NestedReplies", fields: [parentId], references: [id])
+  replies    ForumReply[] @relation("NestedReplies")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model Conversation {
+  id        String                   @id @default(uuid())
+  createdAt DateTime                 @default(now())
+  participants ConversationParticipant[]
+  messages  DirectMessage[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model DirectMessage {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  contenido      String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model WorkingGroup {
+  id               String         @id @default(uuid())
+  nombre           String
+  sectionSubjectId String
+  sectionSubject   SectionSubject @relation(fields: [sectionSubjectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  members          GroupMember[]
+}
+
+model GroupMember {
+  id        String       @id @default(uuid())
+  groupId   String
+  group     WorkingGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  role      String       @default("MEMBER")
+
+  @@unique([groupId, userId])
 }
 
 model PasswordResetToken {

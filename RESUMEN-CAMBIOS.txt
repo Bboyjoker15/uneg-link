@@ -1,0 +1,170 @@
+=========================================================
+  RESUMEN DE CAMBIOS — Uneg-Link
+  Fecha: Julio 2026
+=========================================================
+
+A continuación un resumen de todas las funcionalidades
+implementadas hasta ahora en el proyecto.
+
+=========================================================
+  FASE 1 — AJUSTES CRÍTICOS
+=========================================================
+
+1. Límite 5MB en archivos
+   - Se bajó el límite de subida de 10MB/20MB a 5MB en
+     upload.js y assignments.js (multer)
+
+2. Cédula solo para profesores
+   - Se eliminó cédula de CAMPOS_PUBLICOS en profileController
+   - En el listado de miembros, los estudiantes ya no ven
+     la cédula de otros estudiantes ni del profesor
+   - Solo el profesor de la materia ve las cédulas
+
+3. Limitar contenido IA
+   - Se agregó un límite de 3000 caracteres en las
+     respuestas de la IA (aiService.js)
+   - Respuestas más largas se truncan automáticamente
+
+4. Confirmación anuncios IA
+   - Los anuncios generados con IA ya no se publican
+     automáticamente. Ahora se muestra una vista previa
+     y el profesor debe confirmar antes de publicar
+   - Nuevo endpoint: POST /api/ai/announcement/confirm
+
+5. Ocultar mensajes IA
+   - Los mensajes de IA aparecen colapsados por defecto
+   - Botón toggle para mostrar/ocultar (ChatArea.jsx)
+
+=========================================================
+  FASE 2 — ROLES Y VISIBILIDAD
+=========================================================
+
+6. Roles: Delegado, Preparador, Vocero
+   - Nuevo campo subRole en el modelo Enrollment
+   - El profesor puede asignar roles desde el panel
+     de miembros (select desplegable al hacer hover)
+   - Endpoint: PUT /api/enrollments/:ssId/role/:userId
+
+7. Label de rol visible
+   - El subRole se muestra en la lista de miembros
+   - Los avatares cambian de color según el rol:
+     - Delegado → verde
+     - Preparador → naranja
+     - Vocero → cian
+
+8. Buscador de alumnos
+   - Input de búsqueda en el panel de miembros
+     (solo visible para el profesor)
+   - Filtra por nombre o cédula en tiempo real
+
+9. Refinar registro
+   - Se reemplazó la lista hardcodeada de cédulas
+     válidas por una validación de formato regex
+   - Ahora acepta cualquier cédula V- seguida de
+     7 u 8 dígitos
+
+=========================================================
+  FASE 3 — CALIDAD DE VIDA
+=========================================================
+
+10. Responsive Dashboard
+    - Sidebar se oculta en móviles y se abre como
+      overlay con botón toggle
+    - Pestañas de materias y sub-tabs con scroll
+      horizontal en pantallas pequeñas
+
+11. Foro de Discusión
+    - Nuevos modelos: ForumThread, ForumReply
+    - Hilos con respuestas anidadas
+    - El profesor puede fijar/cerrar hilos
+    - Endpoints:
+      GET  /api/forum/:ssId/threads
+      POST /api/forum/:ssId/threads
+      GET  /api/forum/threads/:id
+      POST /api/forum/threads/:id/replies
+      PUT  /api/forum/threads/:id/pin
+      PUT  /api/forum/threads/:id/close
+
+=========================================================
+  FASE 4 — NUEVAS FEATURES
+=========================================================
+
+12. Mensajes Directos
+    - Nuevos modelos: Conversation, ConversationParticipant,
+      DirectMessage
+    - Botón de mensaje en el perfil público de cada usuario
+    - Lista de conversaciones con último mensaje y contador
+      de no leídos
+    - Socket.io para mensajes en tiempo real
+    - Endpoints:
+      GET  /api/direct-messages/conversations
+      POST /api/direct-messages/conversations/:userId
+      GET  /api/direct-messages/conversations/:id/messages
+      POST /api/direct-messages/conversations/:id/messages
+
+13. Grupos de Trabajo
+    - Nuevos modelos: WorkingGroup, GroupMember
+    - El profesor crea grupos y asigna estudiantes
+    - Los estudiantes ven a qué grupo pertenecen
+    - Endpoints:
+      GET  /api/groups/:ssId
+      POST /api/groups/:ssId
+      PUT  /api/groups/group/:id
+      DELETE /api/groups/group/:id
+      POST /api/groups/group/:id/members/:userId
+      DELETE /api/groups/group/:id/members/:userId
+
+14. Panel del Profesor
+    - Dashboard con estadísticas de la materia:
+      estudiantes, tareas, quizzes, entregas, intentos
+    - Endpoint: GET /api/professor/:ssId/stats
+
+15. Exportar Notas
+    - Botón "Exportar CSV" en la vista de notas del
+      profesor
+    - Descarga un archivo CSV con todas las notas
+      (compatible con Excel)
+    - Endpoint: GET /api/grades/:ssId/export
+
+=========================================================
+  CAMBIOS EN EL ESQUEMA (Prisma)
+=========================================================
+
+Se agregaron los siguientes modelos:
+- ForumThread, ForumReply
+- Conversation, ConversationParticipant, DirectMessage
+- WorkingGroup, GroupMember
+
+Campos nuevos en modelos existentes:
+- Enrollment.subRole (String?, nullable)
+
+Para aplicar a tu base de datos local:
+  cd server
+  npx prisma db push
+
+Si migras a PostgreSQL/Supabase:
+  1. Cambiar datasource en schema.prisma
+  2. npm install @prisma/client
+  3. npx prisma db push
+  4. Ejecutar seed: node prisma/seed.js
+
+=========================================================
+  NUEVAS RUTAS DE API
+=========================================================
+
+/api/forum/*          — Foro de discusión
+/api/direct-messages/* — Mensajes directos
+/api/groups/*         — Grupos de trabajo
+/api/professor/*      — Panel del profesor
+/api/grades/:id/export — Exportar notas CSV
+/api/ai/announcement/confirm — Confirmar anuncio IA
+/api/enrollments/:id/role/:userId — Asignar subRole
+/api/enrollments/:id/search — Buscar estudiantes
+
+=========================================================
+  NUEVAS DEPENDENCIAS (servidor)
+=========================================================
+
+Ninguna. Todo funciona con las dependencias existentes.
+
+=========================================================

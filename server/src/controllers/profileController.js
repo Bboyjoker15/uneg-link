@@ -75,7 +75,7 @@ export async function uploadAvatar(req, res) {
 }
 
 const CAMPOS_PUBLICOS = {
-  id: true, nombre: true, cedula: true, avatar: true, role: true,
+  id: true, nombre: true, avatar: true, role: true,
   carrera: true, semestre: true, bio: true
 }
 

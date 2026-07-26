@@ -20,6 +20,10 @@ import profileRoutes from './routes/profile.js'
 import notificationRoutes from './routes/notifications.js'
 import assignmentRoutes from './routes/assignments.js'
 import gradeRoutes from './routes/grades.js'
+import forumRoutes from './routes/forum.js'
+import directMessageRoutes from './routes/directMessages.js'
+import groupRoutes from './routes/groups.js'
+import professorPanelRoutes from './routes/professorPanel.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -52,6 +56,10 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/assignments', assignmentRoutes)
 app.use('/api/grades', gradeRoutes)
+app.use('/api/forum', forumRoutes)
+app.use('/api/direct-messages', directMessageRoutes)
+app.use('/api/groups', groupRoutes)
+app.use('/api/professor', professorPanelRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSocket } from '../contexts/SocketContext'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
-import { FiSend, FiPaperclip, FiCpu, FiDownload, FiVolume2, FiEdit3 } from 'react-icons/fi'
+import { FiSend, FiPaperclip, FiCpu, FiDownload, FiVolume2, FiEdit3, FiCheck, FiChevronDown, FiChevronRight } from 'react-icons/fi'
 
 export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
   const [messages, setMessages] = useState([])
@@ -17,6 +17,8 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
   const [customAnnouncement, setCustomAnnouncement] = useState('')
   const [aiPrompt, setAiPrompt] = useState('')
   const [announceLoading, setAnnounceLoading] = useState(false)
+  const [aiAnnouncementPreview, setAiAnnouncementPreview] = useState(null)
+  const [showAIMessages, setShowAIMessages] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
   const { socket, connected } = useSocket()
@@ -187,14 +189,31 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
     if (!aiPrompt.trim()) return
     setAnnounceLoading(true)
     try {
-      await api.post('/ai/announcement', {
+      const res = await api.post('/ai/announcement', {
         sectionSubjectId,
         prompt: aiPrompt
       })
+      setAiAnnouncementPreview(res.data.content)
+    } catch (err) {
+      console.error('Error generating AI announcement:', err)
+    } finally {
+      setAnnounceLoading(false)
+    }
+  }
+
+  const handleConfirmAIAnnouncement = async () => {
+    if (!aiAnnouncementPreview) return
+    setAnnounceLoading(true)
+    try {
+      await api.post('/ai/announcement/confirm', {
+        sectionSubjectId,
+        content: aiAnnouncementPreview
+      })
+      setAiAnnouncementPreview(null)
       setAiPrompt('')
       setAnnounceMode('off')
     } catch (err) {
-      console.error('Error generating AI announcement:', err)
+      console.error('Error publishing AI announcement:', err)
     } finally {
       setAnnounceLoading(false)
     }
@@ -256,63 +275,92 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         {loading && <p className="text-center text-[var(--color-text-secondary)] py-4">Cargando mensajes...</p>}
 
-        {messages.map(msg => {
-          const isOwn = msg.user?.id === user.id
+        {(() => {
+          const regularMessages = messages.filter(m => !m.isAI)
+          const aiMessages = messages.filter(m => m.isAI)
           return (
-            <div key={msg.id} className={`flex ${isOwn && !msg.isAI ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] ${isOwn && !msg.isAI ? 'order-1' : 'order-2'}`}>
-                <div className={`px-4 py-2.5 rounded-2xl ${
-                  msg.isAI
-                    ? 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-bl-md'
-                    : isOwn
-                      ? 'bg-blue-500 text-white rounded-br-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-[var(--color-text-primary)] rounded-bl-md'
-                }`}>
-                  {!isOwn && !msg.isAI && (
-                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
-                      <button
-                        onClick={() => onViewProfile?.(msg.user.id)}
-                        className="hover:underline"
-                      >
-                        {msg.user?.nombre}
-                      </button>
-                      {msg.user?.role === 'PROFESOR' && <span className="ml-1 text-yellow-500">●</span>}
-                    </p>
-                  )}
-                  {msg.isAI && (
-                    <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-1 flex items-center gap-1">
-                      <FiCpu size={12} /> UnegAI
-                    </p>
-                  )}
-                  {msg.contenido && (
-                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                      {msg.contenido}
-                    </p>
-                  )}
-                  {msg.fileUrl && (
-                    <a
-                      href={msg.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`inline-flex items-center gap-2 mt-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+            <>
+              {regularMessages.map(msg => {
+                const isOwn = msg.user?.id === user.id
+                return (
+                  <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] ${isOwn ? 'order-1' : 'order-2'}`}>
+                      <div className={`px-4 py-2.5 rounded-2xl ${
                         isOwn
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-200 dark:bg-gray-600 text-[var(--color-text-primary)] hover:bg-gray-300 dark:hover:bg-gray-500'
-                      }`}
-                    >
-                      <span>{getFileIcon(msg.fileType)}</span>
-                      <span className="truncate max-w-[150px]">{msg.fileName || 'Archivo'}</span>
-                      <FiDownload size={12} />
-                    </a>
-                  )}
+                          ? 'bg-blue-500 text-white rounded-br-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-[var(--color-text-primary)] rounded-bl-md'
+                      }`}>
+                        {!isOwn && (
+                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">
+                            <button
+                              onClick={() => onViewProfile?.(msg.user.id)}
+                              className="hover:underline"
+                            >
+                              {msg.user?.nombre}
+                            </button>
+                            {msg.user?.role === 'PROFESOR' && <span className="ml-1 text-yellow-500">●</span>}
+                          </p>
+                        )}
+                        {msg.contenido && (
+                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                            {msg.contenido}
+                          </p>
+                        )}
+                        {msg.fileUrl && (
+                          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
+                            className={`inline-flex items-center gap-2 mt-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                              isOwn
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-gray-200 dark:bg-gray-600 text-[var(--color-text-primary)] hover:bg-gray-300 dark:hover:bg-gray-500'
+                            }`}>
+                            <span>{getFileIcon(msg.fileType)}</span>
+                            <span className="truncate max-w-[150px]">{msg.fileName || 'Archivo'}</span>
+                            <FiDownload size={12} />
+                          </a>
+                        )}
+                      </div>
+                      <p className={`text-[10px] text-[var(--color-text-secondary)] mt-0.5 ${isOwn ? 'text-right mr-1' : 'text-left ml-1'}`}>
+                        {formatDate(msg.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {aiMessages.length > 0 && (
+                <div className="pt-2 border-t border-purple-200 dark:border-purple-800">
+                  <button
+                    onClick={() => setShowAIMessages(!showAIMessages)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors w-full text-left"
+                  >
+                    {showAIMessages ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                    <FiCpu size={14} />
+                    Mensajes de IA ({aiMessages.length})
+                  </button>
+                  {showAIMessages && aiMessages.map(msg => (
+                    <div key={msg.id} className="flex justify-start mt-2">
+                      <div className="max-w-[75%]">
+                        <div className="px-4 py-2.5 rounded-2xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-bl-md">
+                          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-1 flex items-center gap-1">
+                            <FiCpu size={12} /> UnegAI
+                          </p>
+                          {msg.contenido && (
+                            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed text-[var(--color-text-primary)]">
+                              {msg.contenido}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[var(--color-text-secondary)] mt-0.5 ml-1">
+                          {formatDate(msg.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <p className={`text-[10px] text-[var(--color-text-secondary)] mt-0.5 ${isOwn && !msg.isAI ? 'text-right mr-1' : 'text-left ml-1'}`}>
-                  {formatDate(msg.createdAt)}
-                </p>
-              </div>
-            </div>
+              )}
+            </>
           )
-        })}
+        })()}
 
         {aiLoading && (
           <div className="flex justify-start">
@@ -414,25 +462,53 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
                 </div>
               </form>
             ) : announceMode === 'ai' ? (
-              <form onSubmit={handleAIAnnouncement}>
-                <input
-                  type="text"
-                  value={aiPrompt}
-                  onChange={e => setAiPrompt(e.target.value)}
-                  placeholder="Ej: Recuerda a los estudiantes que el examen final es la próxima semana"
-                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-2"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={!aiPrompt.trim() || announceLoading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500 text-white hover:bg-purple-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <FiCpu size={16} />
-                    {announceLoading ? 'Generando...' : 'Generar y publicar con IA'}
-                  </button>
+              aiAnnouncementPreview ? (
+                <div className="space-y-2">
+                  <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-2">Vista previa del anuncio generado por IA:</p>
+                    <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{aiAnnouncementPreview}</p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAiAnnouncementPreview(null)}
+                      disabled={announceLoading}
+                      className="px-4 py-2 rounded-xl border border-[var(--color-border-default)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmAIAnnouncement}
+                      disabled={announceLoading}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500 text-white hover:bg-purple-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <FiCheck size={16} />
+                      {announceLoading ? 'Publicando...' : 'Publicar anuncio'}
+                    </button>
+                  </div>
                 </div>
-              </form>
+              ) : (
+                <form onSubmit={handleAIAnnouncement}>
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="Ej: Recuerda a los estudiantes que el examen final es la próxima semana"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-2"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={!aiPrompt.trim() || announceLoading}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500 text-white hover:bg-purple-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <FiCpu size={16} />
+                      {announceLoading ? 'Generando...' : 'Generar con IA'}
+                    </button>
+                  </div>
+                </form>
+              )
             ) : (
               <>
                 {file && (

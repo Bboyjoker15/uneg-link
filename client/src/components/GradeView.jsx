@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
-import { FiStar, FiCheckSquare, FiPaperclip, FiTrendingUp } from 'react-icons/fi'
+import { FiStar, FiCheckSquare, FiPaperclip, FiTrendingUp, FiDownload } from 'react-icons/fi'
 
 export default function GradeView({ sectionSubjectId, onViewProfile }) {
   const { user } = useAuth()
@@ -46,9 +46,17 @@ export default function GradeView({ sectionSubjectId, onViewProfile }) {
   if (isProfesor && data) {
     return (
       <div className="flex-1 p-6 overflow-y-auto">
-        <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-6">
-          <FiTrendingUp className="inline mr-2" /> Notas — General
-        </h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
+            <FiTrendingUp className="inline mr-2" /> Notas — General
+          </h2>
+          <button
+            onClick={() => window.open(`/api/grades/${sectionSubjectId}/export`, '_blank')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border-default)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]"
+          >
+            <FiDownload size={14} /> Exportar CSV
+          </button>
+        </div>
 
         {data.students?.length === 0 ? (
           <p className="text-center text-[var(--color-text-secondary)] py-12">No hay estudiantes inscritos</p>

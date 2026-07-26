@@ -13,8 +13,12 @@ import NotificationBell from '../components/NotificationBell'
 import PublicProfile from '../components/PublicProfile'
 import AssignmentView from '../components/AssignmentView'
 import GradeView from '../components/GradeView'
+import ForumView from '../components/ForumView'
+import DirectMessages from '../components/DirectMessages'
+import GroupView from '../components/GroupView'
+import ProfessorPanel from '../components/ProfessorPanel'
 import Profile from './Profile'
-import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft, FiStar, FiX, FiTrendingUp } from 'react-icons/fi'
+import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft, FiStar, FiX, FiTrendingUp, FiMessageCircle, FiUsers, FiBarChart2, FiChevronDown } from 'react-icons/fi'
 
 const SUB_TABS = [
   { key: 'chat', label: 'Chat', icon: FiHash },
@@ -22,7 +26,10 @@ const SUB_TABS = [
   { key: 'assignments', label: 'Tareas', icon: FiPaperclip },
   { key: 'calendar', label: 'Calendario', icon: FiCalendar },
   { key: 'grades', label: 'Notas', icon: FiTrendingUp },
-  { key: 'quizzes', label: 'Quizzes', icon: FiCheckSquare }
+  { key: 'quizzes', label: 'Quizzes', icon: FiCheckSquare },
+  { key: 'forum', label: 'Foro', icon: FiMessageCircle },
+  { key: 'groups', label: 'Grupos', icon: FiUsers },
+  { key: 'panel', label: 'Panel', icon: FiBarChart2 }
 ]
 
 const EVENT_STYLES = {
@@ -157,6 +164,9 @@ export default function Dashboard() {
   const [membersProfesor, setMembersProfesor] = useState(null)
   const [publicProfileUserId, setPublicProfileUserId] = useState(null)
   const [loadingMembers, setLoadingMembers] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [showDMs, setShowDMs] = useState(false)
 
   useEffect(() => {
     loadSubjects()
@@ -385,7 +395,7 @@ export default function Dashboard() {
           </button>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowProfile(true)}
+              onClick={() => { setShowProfile(true); setShowDMs(false) }}
               className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors"
             >
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium overflow-hidden">
@@ -401,6 +411,9 @@ export default function Dashboard() {
               </div>
             </button>
             <NotificationBell socket={socket} onNotificationClick={handleNotificationClick} />
+            <button onClick={() => { setShowDMs(!showDMs); setShowProfile(false) }} className={`p-2 rounded-lg transition-colors ${showDMs ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}`} title="Mensajes directos">
+              <FiMessageCircle size={18} />
+            </button>
             <button onClick={toggle} className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors">
               {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
             </button>
@@ -440,12 +453,18 @@ export default function Dashboard() {
       </div>
 
       {showProfile ? null : activeTab !== 'home' && activeSubject && (
-        <div className="flex items-center gap-1 px-6 py-1.5 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
+        <div className="flex items-center gap-1 px-2 sm:px-6 py-1.5 border-b border-[var(--color-border-default)] bg-[var(--color-bg)] overflow-x-auto">
+          <button
+            onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+            className="sm:hidden p-1.5 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] mr-1 flex-shrink-0"
+          >
+            <FiChevronDown size={16} />
+          </button>
           {SUB_TABS.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.key
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                   : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]'
@@ -459,10 +478,22 @@ export default function Dashboard() {
       )}
 
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {showProfile ? (
+        {showDMs ? (
+          <DirectMessages onViewProfile={(id) => setPublicProfileUserId(id)} />
+        ) : showProfile ? (
           <Profile onBack={() => setShowProfile(false)} />
         ) : activeTab !== 'home' && activeSubject && (
-          <aside className="w-60 border-r border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] flex flex-col">
+          <aside className={`${
+            showMobileSidebar ? 'fixed inset-0 z-40' : 'hidden'
+          } sm:flex sm:relative sm:w-60 border-r border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] flex-col`}>
+            {showMobileSidebar && (
+              <div className="sm:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)]">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Menú</h3>
+                <button onClick={() => setShowMobileSidebar(false)} className="p-1 rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]">
+                  <FiX size={18} />
+                </button>
+              </div>
+            )}
             <div className="flex border-b border-[var(--color-border-default)]">
               <button
                 onClick={() => setSidebarView('channels')}
@@ -522,7 +553,7 @@ export default function Dashboard() {
                   {activeSubject?.channels?.map(channel => (
                     <div key={channel.id} className="group flex items-center">
                       <button
-                        onClick={() => { setActiveChannel(channel); setActiveTab('chat') }}
+                        onClick={() => { setActiveChannel(channel); setActiveTab('chat'); setShowMobileSidebar(false) }}
                         className={`flex-1 flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
                           activeChannel?.id === channel.id
                             ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-medium'
@@ -575,18 +606,34 @@ export default function Dashboard() {
                         </button>
                       </div>
                     )}
-                    <div className="px-4">
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] font-semibold mb-2">
+                    <div className="px-4 space-y-2 mb-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] font-semibold">
                         Estudiantes ({members.length})
                       </p>
+                      {user?.role === 'PROFESOR' && (
+                        <input
+                          type="text"
+                          value={memberSearch}
+                          onChange={e => setMemberSearch(e.target.value)}
+                          placeholder="Buscar por nombre o cédula..."
+                          className="w-full px-3 py-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg)] text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      )}
                     </div>
-                    {members.map(member => (
+                    {members
+                      .filter(m => !memberSearch || m.nombre.toLowerCase().includes(memberSearch.toLowerCase()) || (m.cedula && m.cedula.includes(memberSearch)))
+                      .map(member => (
                       <div key={member.id} className="group flex items-center px-4">
                         <button
-                          onClick={() => setPublicProfileUserId(member.id)}
+                          onClick={() => { setPublicProfileUserId(member.id); setShowMobileSidebar(false) }}
                           className="flex-1 flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors text-left"
                         >
-                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden flex-shrink-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium overflow-hidden flex-shrink-0 ${
+                            member.subRole === 'DELEGADO' ? 'bg-emerald-500' :
+                            member.subRole === 'PREPARADOR' ? 'bg-orange-500' :
+                            member.subRole === 'VOCERO' ? 'bg-cyan-500' :
+                            'bg-blue-500'
+                          }`}>
                             {member.avatar ? (
                               <img src={member.avatar} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -595,9 +642,32 @@ export default function Dashboard() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{member.nombre}</p>
-                            <p className="text-[10px] text-[var(--color-text-secondary)]">{member.cedula}</p>
+                            <p className="text-[10px] text-[var(--color-text-secondary)]">
+                              {member.subRole ? member.subRole : (member.cedula || member.role)}
+                            </p>
                           </div>
                         </button>
+                        {user?.role === 'PROFESOR' && membersProfesor?.id === user.id && (
+                          <select
+                            value={member.subRole || ''}
+                            onChange={async (e) => {
+                              const val = e.target.value || null
+                              try {
+                                await api.put(`/enrollments/${activeSubject.id}/role/${member.id}`, { subRole: val })
+                                loadMembers()
+                              } catch (err) {
+                                console.error('Error setting role:', err)
+                              }
+                            }}
+                            onClick={e => e.stopPropagation()}
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <option value="">Sin rol</option>
+                            <option value="DELEGADO">Delegado</option>
+                            <option value="PREPARADOR">Preparador</option>
+                            <option value="VOCERO">Vocero</option>
+                          </select>
+                        )}
                         {user?.role === 'PROFESOR' && membersProfesor?.id === user.id && connected && (
                           <button
                             onClick={async () => {
@@ -625,7 +695,9 @@ export default function Dashboard() {
         )}
 
         {publicProfileUserId && (
-          <PublicProfile userId={publicProfileUserId} onBack={() => setPublicProfileUserId(null)} />
+          <PublicProfile userId={publicProfileUserId} onBack={() => setPublicProfileUserId(null)}
+            onSendMessage={async (id) => { setPublicProfileUserId(null); try { const res = await api.post(`/direct-messages/conversations/${id}`); setShowDMs(true); } catch (err) { console.error(err) } }}
+          />
         )}
         {!showProfile && !publicProfileUserId && (
           <main className="flex-1 flex flex-col min-h-0">
@@ -958,6 +1030,18 @@ export default function Dashboard() {
                 </div>
               </div>
             )
+          )}
+
+          {activeTab === 'forum' && (
+            <ForumView sectionSubjectId={activeSubject?.id} onViewProfile={(id) => setPublicProfileUserId(id)} />
+          )}
+
+          {activeTab === 'groups' && (
+            <GroupView sectionSubjectId={activeSubject?.id} members={members} />
+          )}
+
+          {activeTab === 'panel' && (
+            <ProfessorPanel sectionSubjectId={activeSubject?.id} />
           )}
         </main>
       )}
