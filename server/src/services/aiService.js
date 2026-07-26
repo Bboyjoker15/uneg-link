@@ -33,15 +33,15 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
       include: {
         subject: true,
         section: true,
-        files: { orderBy: { createdAt: 'desc' }, take: 50 },
-        events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 100 },
-        quizzes: { orderBy: { createdAt: 'desc' }, take: 20 },
+        files: { orderBy: { createdAt: 'desc' }, take: 15 },
+        events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 15 },
+        quizzes: { orderBy: { createdAt: 'desc' }, take: 10 },
         channels: {
           where: { nombre: 'Anuncios' },
           include: {
             messages: {
               orderBy: { createdAt: 'desc' },
-              take: 50,
+              take: 15,
               include: { user: { select: { nombre: true } } }
             }
           }
@@ -81,7 +81,7 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
 
     const relevantMessages = messages
       .filter(m => m.isRelevant !== false && !m.isAI)
-      .slice(-100)
+      .slice(-25)
 
     if (relevantMessages.length > 0) {
       contextParts.push('\nHISTORIAL DE LA CONVERSACIÓN:\n' +

@@ -154,6 +154,7 @@ export default function Dashboard() {
   const [quizzes, setQuizzes] = useState([])
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({ titulo: '', descripcion: '', fecha: '', tipo: 'OTRO', importante: false })
+  const [pendingAnnouncement, setPendingAnnouncement] = useState(null)
   const [quizView, setQuizView] = useState('list')
   const [activeQuiz, setActiveQuiz] = useState(null)
   const [quizAttemptResult, setQuizAttemptResult] = useState(null)
@@ -328,7 +329,7 @@ export default function Dashboard() {
     setError('')
     if (!newEvent.titulo.trim() || !newEvent.fecha) return
     try {
-      await api.post('/calendar', {
+      const res = await api.post('/calendar', {
         sectionSubjectId: activeSubject.id,
         titulo: newEvent.titulo,
         descripcion: newEvent.descripcion,
@@ -339,8 +340,25 @@ export default function Dashboard() {
       setNewEvent({ titulo: '', descripcion: '', fecha: '', tipo: 'OTRO', importante: false })
       setShowNewEvent(false)
       loadEvents()
+      if (res.data.announcementPreview) {
+        setPendingAnnouncement({
+          sectionSubjectId: activeSubject.id,
+          content: res.data.announcementPreview
+        })
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Error al crear evento')
+    }
+  }
+
+  const handleConfirmEventAnnouncement = async () => {
+    if (!pendingAnnouncement) return
+    try {
+      await api.post('/ai/announcement/confirm', pendingAnnouncement)
+      setPendingAnnouncement(null)
+    } catch (err) {
+      console.error('Error publishing event announcement:', err)
+      setPendingAnnouncement(null)
     }
   }
 
@@ -643,7 +661,7 @@ export default function Dashboard() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{member.nombre}</p>
                             <p className="text-[10px] text-[var(--color-text-secondary)]">
-                              {member.subRole ? member.subRole : (member.cedula || member.role)}
+                              {member.subRole || (user?.role === 'PROFESOR' ? member.cedula : 'Estudiante')}
                             </p>
                           </div>
                         </button>
@@ -699,6 +717,27 @@ export default function Dashboard() {
             onSendMessage={async (id) => { setPublicProfileUserId(null); try { const res = await api.post(`/direct-messages/conversations/${id}`); setShowDMs(true); } catch (err) { console.error(err) } }}
           />
         )}
+
+        {pendingAnnouncement && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPendingAnnouncement(null)}>
+            <div className="bg-[var(--color-bg)] border border-[var(--color-border-default)] rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Anuncio generado por IA</h3>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-4">El evento importante generó este anuncio automáticamente. ¿Publicarlo en el canal de Anuncios?</p>
+              <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 mb-4">
+                <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{pendingAnnouncement.content}</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setPendingAnnouncement(null)} className="px-4 py-2 border border-[var(--color-border-default)] rounded-lg text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]">
+                  Cancelar
+                </button>
+                <button onClick={handleConfirmEventAnnouncement} className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600">
+                  Publicar anuncio
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!showProfile && !publicProfileUserId && (
           <main className="flex-1 flex flex-col min-h-0">
             {activeTab === 'home' && (
@@ -920,7 +959,7 @@ export default function Dashboard() {
                           >
                             {a.userName}
                           </button>
-                          <p className="text-xs text-[var(--color-text-secondary)]">{a.cedula}</p>
+                          {user?.role === 'PROFESOR' && <p className="text-xs text-[var(--color-text-secondary)]">{a.cedula}</p>}
                           <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                             {new Date(a.submittedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </p>
