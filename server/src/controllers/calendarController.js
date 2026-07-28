@@ -13,7 +13,7 @@ async function generateAnnouncement(event, sectionSubjectId) {
     include: {
       subject: true,
       section: true,
-      files: { orderBy: { createdAt: 'desc' }, take: 20 },
+      files: { orderBy: { createdAt: 'desc' }, take: 10 },
       events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 10 },
       channels: {
         where: { nombre: 'Anuncios' },
@@ -132,14 +132,12 @@ export async function createEvent(req, res) {
       }
     })
 
+    let announcementPreview = null
     if (importante) {
-      const announcementText = await generateAnnouncement(event, sectionSubjectId)
-      if (announcementText) {
-        await postAnnouncementToChannel(req.app.get('io'), sectionSubjectId, announcementText, req.user.id, true)
-      }
+      announcementPreview = await generateAnnouncement(event, sectionSubjectId)
     }
 
-    res.status(201).json(event)
+    res.status(201).json({ ...event, announcementPreview })
   } catch (error) {
     console.error('Create event error:', error)
     res.status(500).json({ error: 'Error al crear evento' })

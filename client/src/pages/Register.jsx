@@ -10,6 +10,7 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { register } = useAuth()
@@ -31,7 +32,7 @@ export default function Register() {
 
     setLoading(true)
     try {
-      await register(nombre, cedula, password)
+      await register(nombre, cedula, password, rememberMe)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.error || 'Error al registrarse')
@@ -135,6 +136,19 @@ export default function Register() {
                 className="w-full px-4 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 required
               />
+            </div>
+
+            <div className="mb-6 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-[var(--color-border-default)] text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="rememberMe" className="text-sm text-[var(--color-text-secondary)] cursor-pointer select-none">
+                Recordarme por 30 días
+              </label>
             </div>
 
             <button

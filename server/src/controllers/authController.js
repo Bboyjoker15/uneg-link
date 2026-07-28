@@ -16,7 +16,7 @@ function normalizarCedula(val) {
 
 export async function register(req, res) {
   try {
-    let { nombre, cedula, password } = req.body
+    let { nombre, cedula, password, rememberMe } = req.body
     cedula = normalizarCedula(cedula)
 
     if (!nombre || !cedula || !password) {
@@ -38,10 +38,12 @@ export async function register(req, res) {
       data: { nombre, cedula, password: hashed }
     })
 
+    const expiresIn = rememberMe ? '30d' : '1d'
+
     const token = jwt.sign(
       { id: user.id, nombre: user.nombre, cedula: user.cedula, role: user.role },
       config.jwtSecret,
-      { expiresIn: '7d' }
+      { expiresIn }
     )
 
     res.status(201).json({

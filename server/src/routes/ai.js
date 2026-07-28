@@ -24,15 +24,15 @@ router.post('/announcement', authenticate, requireRole('PROFESOR'), async (req, 
       include: {
         subject: true,
         section: true,
-        files: { orderBy: { createdAt: 'desc' }, take: 50 },
-        events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 100 },
-        quizzes: { orderBy: { createdAt: 'desc' }, take: 20 },
+        files: { orderBy: { createdAt: 'desc' }, take: 15 },
+        events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 15 },
+        quizzes: { orderBy: { createdAt: 'desc' }, take: 10 },
         channels: {
           where: { nombre: 'Anuncios' },
           include: {
             messages: {
               orderBy: { createdAt: 'desc' },
-              take: 50,
+              take: 15,
               include: { user: { select: { nombre: true } } }
             }
           }
@@ -268,6 +268,9 @@ router.post('/ask', authenticate, async (req, res) => {
 
     if (!question?.trim()) {
       return res.status(400).json({ error: 'Pregunta requerida' })
+    }
+    if (question.length > 500) {
+      return res.status(400).json({ error: 'La pregunta no puede superar los 500 caracteres' })
     }
 
     const channel = await prisma.channel.findUnique({
