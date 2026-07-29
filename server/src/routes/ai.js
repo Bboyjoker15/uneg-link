@@ -1,12 +1,11 @@
 import { Router } from 'express'
-import { PrismaClient } from '@prisma/client'
 import Groq from 'groq-sdk'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import { generateAIResponse } from '../services/aiService.js'
 import config from '../config.js'
+import prisma from '../lib/prisma.js'
 
 const router = Router()
-const prisma = new PrismaClient()
 const groq = new Groq({ apiKey: config.groqApiKey })
 
 const ANNOUNCEMENT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']

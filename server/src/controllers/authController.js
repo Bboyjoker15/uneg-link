@@ -1,11 +1,9 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import { PrismaClient } from '@prisma/client'
 import config from '../config.js'
 import { sendPasswordResetEmail } from '../services/emailService.js'
-
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma.js'
 
 const CEDULA_REGEX = /^V-\d{7,8}$/
 

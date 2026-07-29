@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma.js'
 
 const CAMPOS_EDITABLES = ['nombre', 'email', 'telefono', 'fechaNacimiento', 'direccion', 'bio', 'carrera', 'semestre']
 

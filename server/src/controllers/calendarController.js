@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client'
 import Groq from 'groq-sdk'
 import config from '../config.js'
 
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma.js'
 const groq = new Groq({ apiKey: config.groqApiKey })
 
 const ANNOUNCEMENT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
