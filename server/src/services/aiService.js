@@ -1,9 +1,8 @@
 import Groq from 'groq-sdk'
-import { PrismaClient } from '@prisma/client'
 import config from '../config.js'
+import prisma from '../lib/prisma.js'
 
 const groq = new Groq({ apiKey: config.groqApiKey })
-const prisma = new PrismaClient()
 
 const SYSTEM_PROMPT = `Eres un asistente académico universitario llamado UnegAI. 
 Tu función es ayudar a estudiantes y profesores en el contexto de una materia universitaria.

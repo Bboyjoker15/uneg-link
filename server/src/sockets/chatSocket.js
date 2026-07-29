@@ -1,9 +1,8 @@
-import { PrismaClient } from '@prisma/client'
 import jwt from 'jsonwebtoken'
 import config from '../config.js'
 import { generateAIResponse } from '../services/aiService.js'
 
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma.js'
 
 const userSockets = new Map()
 let ioInstance = null

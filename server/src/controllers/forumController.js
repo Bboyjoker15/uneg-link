@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma.js'
 
 export async function getThreads(req, res) {
   try {

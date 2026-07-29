@@ -6,6 +6,8 @@ export default {
   jwtSecret: process.env.JWT_SECRET || 'uneg-link-secret-key-2026',
   groqApiKey: process.env.GROQ_API_KEY || '',
   databaseUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/uneglink',
+  tursoUrl: process.env.TURSO_DATABASE_URL || '',
+  tursoToken: process.env.TURSO_AUTH_TOKEN || '',
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
