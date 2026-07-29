@@ -48,8 +48,16 @@ export default defineConfig({
       '/uploads': 'http://localhost:3001',
       '/socket.io': {
         target: 'http://localhost:3001',
-        ws: true
+        ws: true,
+        changeOrigin: true,
       }
+    },
+    configureServer(server) {
+      server.ws?.on('error', (e) => {
+        if (e.code === 'EPROTO') return
+        if (e.code === 'ECONNRESET') return
+        console.error('WS error:', e.message)
+      })
     }
   }
 })
