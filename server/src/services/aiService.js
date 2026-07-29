@@ -1,10 +1,8 @@
-import Groq from 'groq-sdk'
-import config from '../config.js'
 import prisma from '../lib/prisma.js'
+import { cfChatCompletion } from './cfAiService.js'
 
-const groq = new Groq({ apiKey: config.groqApiKey })
-
-const SYSTEM_PROMPT = `Eres un asistente académico universitario llamado UnegAI. 
+const SYSTEM_PROMPT = `
+Eres un asistente académico universitario llamado UnegAI.
 Tu función es ayudar a estudiantes y profesores en el contexto de una materia universitaria.
 
 CAPACIDADES:
@@ -20,9 +18,9 @@ REGLAS:
 - Para preguntas académicas generales ("¿qué es un puntero?", "¿cómo funciona una pila?"), responde usando tu conocimiento sin restringirte al contexto.
 - Cuando tengas información de la materia (archivos, eventos, anuncios) úsala como referencia prioritariamente.
 - Si la pregunta es sobre un tema muy específico o actual que no conoces, sugiérele al estudiante que consulte con el profesor o busque en los materiales de la materia.
-- Si el estudiante pregunta algo fuera del ámbito académico, indícale cordialmente que no puedes ayudar con ese tema.`
+- Si el estudiante pregunta algo fuera del ámbito académico, indícale cordialmente que no puedes ayudar con ese tema.
+`
 
-const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
 const MAX_RESPONSE_CHARS = 3000
 
 export async function generateAIResponse(messages, sectionSubjectId, question) {
@@ -89,31 +87,23 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
 
     const fullContext = contextParts.join('\n\n')
 
-    for (const model of MODELS) {
-      try {
-        const completion = await groq.chat.completions.create({
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: `${fullContext}\n\n---\nPregunta del estudiante: ${question || '¿Cuál es el estado actual de la materia?'}\n\nResponde la pregunta del estudiante de manera clara y didáctica. Usa la información de la materia como referencia si es relevante, pero también puedes usar tu conocimiento general para explicar conceptos académicos. Si la pregunta no es académica, indícale cordialmente que no puedes ayudar.` }
-          ],
-          model,
-          temperature: 0.7,
-          max_tokens: 2048
-        })
+    const content = await cfChatCompletion({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `${fullContext}\n\n---\nPregunta del estudiante: ${question || '¿Cuál es el estado actual de la materia?'}\n\nResponde la pregunta del estudiante de manera clara y didáctica. Usa la información de la materia como referencia si es relevante, pero también puedes usar tu conocimiento general para explicar conceptos académicos. Si la pregunta no es académica, indícale cordialmente que no puedes ayudar.` }
+      ],
+      temperature: 0.7,
+      max_tokens: 2048
+    })
 
-        let content = completion.choices[0]?.message?.content || 'Lo siento, no pude procesar tu solicitud.'
-        if (content.length > MAX_RESPONSE_CHARS) {
-          content = content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada por límite de caracteres]*'
-        }
-        return content
-      } catch (error) {
-        console.error(`Groq API error with model ${model}:`, error.message, error.status)
-      }
+    if (!content) return 'Lo siento, no pude procesar tu solicitud.'
+
+    if (content.length > MAX_RESPONSE_CHARS) {
+      return content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada por límite de caracteres]*'
     }
-
-    return 'Error al conectar con la IA. Verifica tu API key y conexión a internet.'
+    return content
   } catch (error) {
     console.error('AI service error:', error)
-    return 'Error al preparar el contexto para la IA.'
+    return 'Error al conectar con la IA. Verifica la configuración de Cloudflare.'
   }
 }

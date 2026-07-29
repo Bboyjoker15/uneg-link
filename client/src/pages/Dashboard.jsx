@@ -18,7 +18,7 @@ import DirectMessages from '../components/DirectMessages'
 import GroupView from '../components/GroupView'
 import ProfessorPanel from '../components/ProfessorPanel'
 import Profile from './Profile'
-import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft, FiStar, FiX, FiTrendingUp, FiMessageCircle, FiUsers, FiBarChart2, FiChevronDown } from 'react-icons/fi'
+import { FiLogOut, FiSun, FiMoon, FiPlus, FiTrash2, FiHash, FiCalendar, FiFile, FiBookOpen, FiCheckSquare, FiHome, FiAlertCircle, FiClock, FiUser, FiPaperclip, FiArrowLeft, FiStar, FiX, FiTrendingUp, FiMessageCircle, FiUsers, FiBarChart2, FiChevronDown, FiShield } from 'react-icons/fi'
 
 const SUB_TABS = [
   { key: 'chat', label: 'Chat', icon: FiHash },
@@ -432,6 +432,11 @@ export default function Dashboard() {
             <button onClick={() => { setShowDMs(!showDMs); setShowProfile(false) }} className={`p-2 rounded-lg transition-colors ${showDMs ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}`} title="Mensajes directos">
               <FiMessageCircle size={18} />
             </button>
+            {user?.role === 'ADMIN' && (
+              <button onClick={() => navigate('/admin')} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors" title="Panel Admin">
+                <FiShield size={18} />
+              </button>
+            )}
             <button onClick={toggle} className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors">
               {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
             </button>

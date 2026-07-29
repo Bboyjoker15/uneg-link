@@ -1,14 +1,10 @@
 import { Router } from 'express'
-import Groq from 'groq-sdk'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import { generateAIResponse } from '../services/aiService.js'
-import config from '../config.js'
+import { cfChatCompletion } from '../services/cfAiService.js'
 import prisma from '../lib/prisma.js'
 
 const router = Router()
-const groq = new Groq({ apiKey: config.groqApiKey })
-
-const ANNOUNCEMENT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
 
 router.post('/announcement', authenticate, requireRole('PROFESOR'), async (req, res) => {
   try {
@@ -76,31 +72,26 @@ router.post('/announcement', authenticate, requireRole('PROFESOR'), async (req, 
     const name = req.user.nombre
 
     let aiContent = null
-    for (const model of ANNOUNCEMENT_MODELS) {
-      try {
-        const completion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: 'system',
-              content: `Eres un asistente que redacta anuncios académicos formales para la materia "${subjectName}" en una plataforma universitaria.
+    try {
+      aiContent = await cfChatCompletion({
+        messages: [
+          {
+            role: 'system',
+            content: `Eres un asistente que redacta anuncios académicos formales para la materia "${subjectName}" en una plataforma universitaria.
 El profesor ${name} te dará una indicación y tú debes convertirla en un anuncio profesional y claro dirigido a los estudiantes.
 Tienes acceso al contexto completo de la materia (materiales, eventos y anuncios) para que el anuncio sea informado y relevante.
 El anuncio debe ser en español, formal pero cercano, bien estructurado y listo para publicar. No agregues meta-instrucciones ni saludos iniciales como "Claro, aquí tienes..." — ve directo al anuncio.`
-            },
-            {
-              role: 'user',
-              content: `CONTEXTO DE LA MATERIA:\n${fullContext}\n\n---\n\nIndicación del profesor: ${prompt}`
-            }
-          ],
-          model,
-          temperature: 0.7,
-          max_tokens: 1024
-        })
-        aiContent = completion.choices[0]?.message?.content
-        if (aiContent) break
-      } catch (error) {
-        console.error(`Groq announcement error with model ${model}:`, error.message)
-      }
+          },
+          {
+            role: 'user',
+            content: `CONTEXTO DE LA MATERIA:\n${fullContext}\n\n---\n\nIndicación del profesor: ${prompt}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1024
+      })
+    } catch (error) {
+      console.error('CF AI announcement error:', error.message)
     }
 
     if (!aiContent) {
@@ -113,8 +104,6 @@ El anuncio debe ser en español, formal pero cercano, bien estructurado y listo 
     res.status(500).json({ error: 'Error al generar anuncio' })
   }
 })
-
-const QUIZ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
 
 router.post('/generate-quiz', authenticate, requireRole('PROFESOR'), async (req, res) => {
   try {
@@ -160,13 +149,12 @@ router.post('/generate-quiz', authenticate, requireRole('PROFESOR'), async (req,
     }).join(', ')
 
     let quizContent = null
-    for (const model of QUIZ_MODELS) {
-      try {
-        const completion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: 'system',
-              content: `Eres un profesor universitario creando preguntas de evaluación para la materia "${subjectName}".
+    try {
+      const text = await cfChatCompletion({
+        messages: [
+          {
+            role: 'system',
+            content: `Eres un profesor universitario creando preguntas de evaluación para la materia "${subjectName}".
 Genera exactamente ${count} preguntas en formato JSON array. Sin markdown, solo JSON.
 
 Formato de cada pregunta:
@@ -184,22 +172,19 @@ Las preguntas deben estar basadas en el contexto de la materia proporcionado.
 Las preguntas de cálculo deben tener valores numéricos exactos como respuesta.
 Las preguntas de opción múltiple deben tener 4 opciones con una claramente correcta.
 Las respuestas deben ser precisas y correctas.`
-            },
-            { role: 'user', content: `Basado en el siguiente contexto de la materia, genera ${count} preguntas sobre el tema: "${topic}"\n\n${fullContext}` }
-          ],
-          model,
-          temperature: 0.7,
-          max_tokens: 4096
-        })
-        const text = completion.choices[0]?.message?.content
-        if (text) {
-          const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-          quizContent = JSON.parse(cleaned)
-          if (Array.isArray(quizContent)) break
-        }
-      } catch (error) {
-        console.error(`Groq quiz gen error with model ${model}:`, error.message)
+          },
+          { role: 'user', content: `Basado en el siguiente contexto de la materia, genera ${count} preguntas sobre el tema: "${topic}"\n\n${fullContext}` }
+        ],
+        temperature: 0.7,
+        max_tokens: 4096
+      })
+
+      if (text) {
+        const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+        quizContent = JSON.parse(cleaned)
       }
+    } catch (error) {
+      console.error('CF AI quiz gen error:', error.message)
     }
 
     if (!quizContent) {

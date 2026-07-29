@@ -1,10 +1,5 @@
-import Groq from 'groq-sdk'
-import config from '../config.js'
-
 import prisma from '../lib/prisma.js'
-const groq = new Groq({ apiKey: config.groqApiKey })
-
-const GRADING_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
+import { cfChatCompletion } from '../services/cfAiService.js'
 
 export async function createQuiz(req, res) {
   try {
@@ -212,27 +207,22 @@ ${JSON.stringify(questions.map(q => ({
 RESPUESTAS DEL ESTUDIANTE:
 ${JSON.stringify(answers)}`
 
-      for (const model of GRADING_MODELS) {
-        try {
-          const completion = await groq.chat.completions.create({
-            messages: [
-              { role: 'system', content: 'Eres un calificador académico. Devuelve solo JSON válido.' },
-              { role: 'user', content: gradingPrompt }
-            ],
-            model,
-            temperature: 0.3,
-            max_tokens: 2048
-          })
-          const text = completion.choices[0]?.message?.content
-          if (text) {
-            const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-            const parsed = JSON.parse(cleaned)
-            results = Array.isArray(parsed) ? parsed : parsed.results || parsed.grades || []
-            break
-          }
-        } catch (e) {
-          console.error(`Grading error with model ${model}:`, e.message)
+      try {
+        const text = await cfChatCompletion({
+          messages: [
+            { role: 'system', content: 'Eres un calificador académico. Devuelve solo JSON válido.' },
+            { role: 'user', content: gradingPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 2048
+        })
+        if (text) {
+          const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+          const parsed = JSON.parse(cleaned)
+          results = Array.isArray(parsed) ? parsed : parsed.results || parsed.grades || []
         }
+      } catch (e) {
+        console.error('CF AI grading error:', e.message)
       }
     } catch (e) {
       console.error('AI grading failed:', e)

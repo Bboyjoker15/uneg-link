@@ -1,10 +1,5 @@
-import Groq from 'groq-sdk'
-import config from '../config.js'
-
 import prisma from '../lib/prisma.js'
-const groq = new Groq({ apiKey: config.groqApiKey })
-
-const ANNOUNCEMENT_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b']
+import { cfChatCompletion } from '../services/cfAiService.js'
 
 async function generateAnnouncement(event, sectionSubjectId) {
   const sectionSubject = await prisma.sectionSubject.findUnique({
@@ -50,7 +45,6 @@ async function generateAnnouncement(event, sectionSubjectId) {
   }
 
   const fullContext = contextParts.join('\n\n')
-  const maxTokens = 1024
 
   const prompt = `Genera un anuncio formal y claro para informar a los estudiantes sobre el siguiente evento académico de la materia "${subjectName}":
 
@@ -63,21 +57,17 @@ CONTEXTO DE LA MATERIA:
 ${fullContext}
 
 Teniendo en cuenta los materiales, contenido y eventos de la materia, redacta un anuncio que mencione los temas relevantes que los estudiantes deben repasar o preparar según el tipo de evento. El anuncio debe ser profesional, motivador y estar dirigido a los estudiantes. Incluye la fecha y detalles importantes.`
-  for (const model of ANNOUNCEMENT_MODELS) {
-    try {
-      const completion = await groq.chat.completions.create({
-        messages: [
-          { role: 'system', content: 'Eres un asistente que redacta anuncios académicos formales para una plataforma universitaria. Los anuncios deben ser claros, profesionales, en español y deben hacer referencia al contenido y materiales de la materia cuando sea relevante.' },
-          { role: 'user', content: prompt }
-        ],
-        model,
-        temperature: 0.7,
-        max_tokens: maxTokens
-      })
-      return completion.choices[0]?.message?.content || null
-    } catch (error) {
-      console.error(`Groq announcement error with model ${model}:`, error.message)
-    }
+  try {
+    return await cfChatCompletion({
+      messages: [
+        { role: 'system', content: 'Eres un asistente que redacta anuncios académicos formales para una plataforma universitaria. Los anuncios deben ser claros, profesionales, en español y deben hacer referencia al contenido y materiales de la materia cuando sea relevante.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 1024
+    })
+  } catch (error) {
+    console.error('CF AI event announcement error:', error.message)
   }
   return null
 }

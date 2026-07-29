@@ -4,7 +4,8 @@ config()
 export default {
   port: process.env.PORT || 3001,
   jwtSecret: process.env.JWT_SECRET || 'uneg-link-secret-key-2026',
-  groqApiKey: process.env.GROQ_API_KEY || '',
+  cfAccountId: process.env.CF_ACCOUNT_ID || '',
+  cfApiToken: process.env.CF_API_TOKEN || '',
   databaseUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/uneglink',
   tursoUrl: process.env.TURSO_DATABASE_URL || '',
   tursoToken: process.env.TURSO_AUTH_TOKEN || '',

@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client'
+import prisma from '../src/lib/prisma.js'
 import bcrypt from 'bcryptjs'
-
-const prisma = new PrismaClient()
 
 const PROFESORES = [
   'Carlos Méndez', 'María Fernández', 'José Rodríguez', 'Ana Martínez',
@@ -253,6 +251,17 @@ async function main() {
   console.log(`   Estudiantes: V-30100000 / 123456 hasta V-30100049 / 123456`)
   console.log('   César Velásquez: V-26592592 / 123456')
   console.log('   Franklin Quintero: V-30932462 / 123456')
+
+  console.log('\n🔧 Creando administrador...')
+  const adminExists = await prisma.user.findUnique({ where: { cedula: 'V-00000001' } })
+  if (!adminExists) {
+    await prisma.user.create({
+      data: { nombre: 'Administrador', cedula: 'V-00000001', password: await bcrypt.hash('admin123', 10), role: 'ADMIN' }
+    })
+    console.log('   Admin: V-00000001 / admin123')
+  } else {
+    console.log('   Admin ya existe')
+  }
   console.log(`\n📊 Resumen:`)
   console.log(`   Profesores: ${profesorUsers.length}`)
   console.log(`   Estudiantes: ${estudianteUsers.length}`)
