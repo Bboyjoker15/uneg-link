@@ -33,14 +33,14 @@ const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:4173'],
+    origin: '*',
     methods: ['GET', 'POST']
   }
 })
 
 app.set('io', io)
 
-app.use(cors())
+app.use(cors({ origin: '*' }))
 app.use(express.json())
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 

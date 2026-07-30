@@ -312,4 +312,45 @@ router.post('/ask', authenticate, async (req, res) => {
   }
 })
 
+// GET /api/ai/tools — listar herramientas disponibles
+router.get('/tools', authenticate, async (req, res) => {
+  const { AI_TOOLS } = await import('../services/aiTools.js')
+  res.json(AI_TOOLS.map(t => ({ name: t.name, description: t.description })))
+})
+
+// POST /api/ai/tools/run — ejecutar múltiples herramientas (antes de :name)
+router.post('/tools/run', authenticate, async (req, res) => {
+  try {
+    const { sectionSubjectId, tools } = req.body
+    if (!sectionSubjectId || !tools?.length) return res.status(400).json({ error: 'sectionSubjectId y tools[] requeridos' })
+
+    const { executeTool } = await import('../services/aiTools.js')
+    const results = await Promise.all(
+      tools.map(async ({ name, args }) => ({
+        tool: name,
+        result: await executeTool(sectionSubjectId, name, args || {})
+      }))
+    )
+    res.json(results)
+  } catch (error) {
+    console.error('Batch tool execution error:', error)
+    res.status(500).json({ error: 'Error al ejecutar herramientas' })
+  }
+})
+
+// POST /api/ai/tools/:name — ejecutar una herramienta directamente (sin IA)
+router.post('/tools/:name', authenticate, async (req, res) => {
+  try {
+    const { sectionSubjectId, args } = req.body
+    if (!sectionSubjectId) return res.status(400).json({ error: 'sectionSubjectId requerido' })
+
+    const { executeTool } = await import('../services/aiTools.js')
+    const result = await executeTool(sectionSubjectId, req.params.name, args || {})
+    res.json({ result })
+  } catch (error) {
+    console.error('Tool execution error:', error)
+    res.status(500).json({ error: 'Error al ejecutar herramienta' })
+  }
+})
+
 export default router

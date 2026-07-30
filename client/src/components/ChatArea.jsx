@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSocket } from '../contexts/SocketContext'
+import { useAgent } from '../contexts/AgentContext'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { FiSend, FiPaperclip, FiCpu, FiDownload, FiVolume2, FiEdit3, FiCheck, FiChevronDown, FiChevronRight } from 'react-icons/fi'
@@ -21,7 +21,7 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
   const [showAIMessages, setShowAIMessages] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
-  const { socket, connected } = useSocket()
+  const { sendChat, sendAI, connected, on, connect, disconnect } = useAgent()
   const { user } = useAuth()
 
   const isAnnounceChannel = channel?.nombre === 'Anuncios'
@@ -35,51 +35,56 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
   }, [channel?.id])
 
   useEffect(() => {
-    if (!socket || !channel) return
+    if (!channel) return
+    loadMessages()
+    setMessages([])
+    setConsultAI(false)
+    connect(channel.id)
+    return () => disconnect()
+  }, [channel?.id])
 
-    socket.emit('join-channel', channel.id)
+  useEffect(() => {
+    if (!channel) return
 
-    const handleNewMessage = (msg) => {
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev
-        return [...prev, msg]
+    const unsubs = [
+      on('message', (msg) => {
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev, { ...msg, user: { id: msg.userId, nombre: msg.userName }, createdAt: new Date() }]
+        })
+      }),
+      on('ai_response', (msg) => {
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev, { ...msg, user: { id: 'ai', nombre: 'UnegAI' }, isAI: true, contenido: msg.content, createdAt: new Date() }]
+        })
+        setAiLoading(false)
+      }),
+      on('thinking', () => {
+        // AI is processing
+      }),
+      on('join', (data) => {
+        // User joined
+      }),
+      on('leave', (data) => {
+        // User left
+      }),
+      on('typing', (data) => {
+        if (data.userId !== user.id) {
+          setTypingUsers(prev => prev.map(u =>
+            u.userId === data.userId ? { ...u, timestamp: Date.now() } : u
+          ).concat(
+            prev.some(u => u.userId === data.userId) ? [] : [{ userId: data.userId, nombre: data.userName, timestamp: Date.now() }]
+          ))
+        }
+      }),
+      on('stop_typing', (data) => {
+        setTypingUsers(prev => prev.filter(u => u.userId !== data.userId))
       })
-    }
-    const handleAIResponse = (msg) => {
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev
-        return [...prev, msg]
-      })
-      setAiLoading(false)
-    }
-    const handleTyping = (data) => {
-      if (data.userId !== user.id) {
-        setTypingUsers(prev => prev.map(u =>
-          u.userId === data.userId
-            ? { ...u, timestamp: Date.now() }
-            : u
-        ).concat(
-          prev.some(u => u.userId === data.userId) ? [] : [{ userId: data.userId, nombre: data.nombre, timestamp: Date.now() }]
-        ))
-      }
-    }
-    const handleStopTyping = (data) => {
-      setTypingUsers(prev => prev.filter(u => u.userId !== data.userId))
-    }
+    ]
 
-    socket.on('new-message', handleNewMessage)
-    socket.on('ai-response', handleAIResponse)
-    socket.on('typing', handleTyping)
-    socket.on('stop-typing', handleStopTyping)
-
-    return () => {
-      socket.emit('leave-channel', channel.id)
-      socket.off('new-message', handleNewMessage)
-      socket.off('ai-response', handleAIResponse)
-      socket.off('typing', handleTyping)
-      socket.off('stop-typing', handleStopTyping)
-    }
-  }, [socket, channel?.id])
+    return () => unsubs.forEach(fn => fn())
+  }, [channel?.id])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -125,43 +130,34 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
           channelId: channel.id,
           question: cleanText
         })
+        // The response comes via WebSocket ai_response
       } catch (err) {
         console.error('AI error:', err)
         setAiLoading(false)
       }
     } else {
-      const formData = new FormData()
-      formData.append('contenido', text)
-      if (file) formData.append('file', file)
-
-      try {
-        await api.post(`/messages/${channel.id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        setInput('')
-        setFile(null)
-        if (socket) {
-          socket.emit('stop-typing', { channelId: channel.id })
-        }
-      } catch (err) {
-        console.error('Error sending message:', err)
+      sendChat(text, sectionSubjectId, channel.nombre)
+      setInput('')
+      setFile(null)
+      if (connected) {
+        sendStopTyping()
       }
     }
   }
 
   const typingEmitRef = useRef(null)
   const handleTypingEmit = () => {
-    if (!socket) return
+    if (!connected) return
     if (input) {
       if (!typingEmitRef.current) {
-        socket.emit('typing', { channelId: channel.id })
+        sendMessage({ type: 'typing' })
       }
       clearTimeout(typingEmitRef.current)
       typingEmitRef.current = setTimeout(() => {
         typingEmitRef.current = null
       }, 3000)
     } else {
-      socket.emit('stop-typing', { channelId: channel.id })
+      sendMessage({ type: 'stop_typing' })
       clearTimeout(typingEmitRef.current)
       typingEmitRef.current = null
     }

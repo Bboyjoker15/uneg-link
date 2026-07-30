@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "uneg-chat-v2",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "durable_objects": {
+    "bindings": [{ "name": "CHAT_ROOM", "class_name": "ChatRoom" }]
+  },
+  "exports": {
+    "ChatRoom": { "type": "durable-object", "storage": "sqlite" }
+  },
+  "vars": {
+    "TURSO_URL": "https://uneg-link-master-adiazt01.aws-us-east-1.turso.io"
+  }
+}

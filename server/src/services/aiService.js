@@ -1,109 +1,116 @@
 import prisma from '../lib/prisma.js'
 import { cfChatCompletion } from './cfAiService.js'
+import { executeTool } from './aiTools.js'
 
-const SYSTEM_PROMPT = `
-Eres un asistente académico universitario llamado UnegAI.
-Tu función es ayudar a estudiantes y profesores en el contexto de una materia universitaria.
+const SYSTEM_PROMPT = `Eres UnegAI, un asistente académico universitario inteligente. Ayudas a estudiantes y profesores.
 
 CAPACIDADES:
-- Responder preguntas sobre conceptos académicos usando tu conocimiento general (programación, matemáticas, física, etc.)
-- Explicar temas y resolver dudas con ejemplos claros
+- Explicar conceptos académicos (programación, matemáticas, física, etc.)
 - Ayudar con tareas, ejercicios y proyectos
-- Proveer información de la materia: archivos, eventos, anuncios, fechas de exámenes y entregas
-- Responder preguntas sobre materiales y documentos subidos
+- Consultar información real de la materia que se te proporciona en cada mensaje
 
-REGLAS:
-- Ignora mensajes de saludo, conversaciones casuales o spam.
-- Mantén un tono formal, profesional y didáctico.
-- Para preguntas académicas generales ("¿qué es un puntero?", "¿cómo funciona una pila?"), responde usando tu conocimiento sin restringirte al contexto.
-- Cuando tengas información de la materia (archivos, eventos, anuncios) úsala como referencia prioritariamente.
-- Si la pregunta es sobre un tema muy específico o actual que no conoces, sugiérele al estudiante que consulte con el profesor o busque en los materiales de la materia.
-- Si el estudiante pregunta algo fuera del ámbito académico, indícale cordialmente que no puedes ayudar con ese tema.
-`
+COMPORTAMIENTO:
+- Los datos entre [DATOS DE LA MATERIA] y [/DATOS] son información real de la base de datos. Úsalos como fuente.
+- NUNCA menciones "[DATOS DE LA MATERIA]" ni "[/DATOS]" en tu respuesta. Son marcadores internos invisibles para el usuario.
+- Presenta la información como si la hubieras consultado tú mismo.
+- Sé formal, profesional y didáctico.
+- Si preguntan algo fuera del ámbito académico, indícalo cordialmente.
+- No inventes fechas ni datos si no los tienes.`
 
 const MAX_RESPONSE_CHARS = 3000
+
+const TOOL_KEYWORDS = {
+  'list_subject_files': ['archivo', 'archivos', 'material', 'materiales', 'pdf', 'documento', 'documentos', 'guía', 'guias', 'subido', 'subidos'],
+  'get_upcoming_events': ['próximo', 'próximos', 'evento', 'eventos', 'calendario', 'semana', 'fecha', 'fechas', 'cuándo', 'cuando', 'examen', 'exámenes', 'entrega', 'entregas', 'parcial', 'final'],
+  'search_calendar_events': ['examen', 'parcial', 'evaluación', 'evaluacion', 'exposición', 'exposicion', 'taller'],
+  'list_assignments': ['tarea', 'tareas', 'asignación', 'asignaciones', 'entregar', 'pendiente', 'pendientes'],
+  'get_recent_announcements': ['anuncio', 'anuncios', 'aviso', 'avisos', 'comunicado', 'comunicados', 'novedad', 'novedades'],
+  'get_quiz_list': ['quiz', 'quizzes', 'cuestionario', 'cuestionarios', 'evaluación', 'prueba', 'pruebas', 'test'],
+  'get_professor_info': ['profesor', 'profesora', 'profe', 'docente', 'enseña', 'dicta', 'correo del prof']
+}
+
+function detectTools(question) {
+  const q = question.toLowerCase()
+  const tools = new Set()
+
+  for (const [tool, keywords] of Object.entries(TOOL_KEYWORDS)) {
+    if (keywords.some(kw => q.includes(kw))) {
+      tools.add(tool)
+    }
+  }
+
+  // Always add general info search for context-rich questions
+  if (tools.size === 0 || q.length > 30) {
+    // Questions that might benefit from context
+    const contextHints = ['materia', 'clase', 'curso', 'sección', 'seccion', 'semana', 'horario', 'tema']
+    if (contextHints.some(h => q.includes(h)) || q.split(' ').length > 5) {
+      tools.add('search_section_subject_info')
+    }
+  }
+
+  // If asking about files or materials, also get general info
+  if (tools.has('list_subject_files')) {
+    tools.add('get_upcoming_events')
+  }
+
+  return [...tools]
+}
+
+function truncateResponse(content) {
+  if (!content) return null
+  if (content.length > MAX_RESPONSE_CHARS) {
+    return content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada]*'
+  }
+  return content
+}
 
 export async function generateAIResponse(messages, sectionSubjectId, question) {
   try {
     const sectionSubject = await prisma.sectionSubject.findUnique({
       where: { id: sectionSubjectId },
-      include: {
-        subject: true,
-        section: true,
-        files: { orderBy: { createdAt: 'desc' }, take: 15 },
-        events: { where: { fecha: { gte: new Date('2024-01-01') } }, orderBy: { fecha: 'asc' }, take: 15 },
-        quizzes: { orderBy: { createdAt: 'desc' }, take: 10 },
-        channels: {
-          where: { nombre: 'Anuncios' },
-          include: {
-            messages: {
-              orderBy: { createdAt: 'desc' },
-              take: 15,
-              include: { user: { select: { nombre: true } } }
-            }
-          }
-        }
-      }
+      include: { subject: true, section: true }
     })
 
-    const contextParts = []
+    if (!sectionSubject) return 'Error: Materia no encontrada.'
 
-    if (sectionSubject) {
-      const subjectName = `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
-      contextParts.push(`INFORMACIÓN DE LA MATERIA:\nNombre: ${subjectName}\nCódigo: ${sectionSubject.subject.codigo}\nSección: ${sectionSubject.section.codigo}`)
+    const subjectName = `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
 
-      if (sectionSubject.files.length > 0) {
-        contextParts.push('\nDOCUMENTOS Y MATERIALES SUBIDOS:\n' +
-          sectionSubject.files.map(f => `- ${f.nombre} (${f.tipo})`).join('\n'))
-      }
+    // Detect and execute tools
+    const toolsToRun = detectTools(question)
+    let toolResults = []
 
-      if (sectionSubject.events.length > 0) {
-        contextParts.push('\nEVENTOS DEL CALENDARIO:\n' +
-          sectionSubject.events.map(e =>
-            `- ${e.titulo}: ${new Date(e.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (${e.tipo})${e.descripcion ? ' - ' + e.descripcion : ''}`
-          ).join('\n'))
-      }
-
-      const announcements = sectionSubject.channels[0]?.messages || []
-      if (announcements.length > 0) {
-        contextParts.push('\nANUNCIOS RECIENTES:\n' +
-          announcements.map(a => `- ${a.user?.nombre}: "${a.contenido}"`).join('\n'))
-      }
-
-      if (sectionSubject.quizzes?.length > 0) {
-        contextParts.push('\nQUIZZES DISPONIBLES:\n' +
-          sectionSubject.quizzes.map(q => `- "${q.titulo}": ${q.descripcion || 'sin descripción'} (${q.maxAttempts} intentos máx)`).join('\n'))
-      }
+    if (toolsToRun.length > 0) {
+      const results = await Promise.all(
+        toolsToRun.map(tool => executeTool(sectionSubjectId, tool, { query: question }))
+      )
+      toolResults = results.map((r, i) => `--- ${toolsToRun[i].replace(/_/g, ' ').toUpperCase()} ---\n${r}`)
     }
 
-    const relevantMessages = messages
-      .filter(m => m.isRelevant !== false && !m.isAI)
-      .slice(-25)
+    // Build conversation
+    const contextBlock = toolResults.length > 0
+      ? `\n\n[DATOS DE LA MATERIA — ${subjectName} — consultados en tiempo real]\n${toolResults.join('\n\n')}\n[/DATOS]`
+      : ''
 
-    if (relevantMessages.length > 0) {
-      contextParts.push('\nHISTORIAL DE LA CONVERSACIÓN:\n' +
-        relevantMessages.map(m => `${m.user?.nombre || 'Usuario'}: ${m.contenido}`).join('\n'))
-    }
+    const conversationMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...messages
+        .filter(m => m.isRelevant !== false && !m.isAI)
+        .slice(-10)
+        .map(m => ({ role: 'user', content: m.contenido })),
+      { role: 'user', content: `${question}${contextBlock}` }
+    ]
 
-    const fullContext = contextParts.join('\n\n')
-
-    const content = await cfChatCompletion({
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `${fullContext}\n\n---\nPregunta del estudiante: ${question || '¿Cuál es el estado actual de la materia?'}\n\nResponde la pregunta del estudiante de manera clara y didáctica. Usa la información de la materia como referencia si es relevante, pero también puedes usar tu conocimiento general para explicar conceptos académicos. Si la pregunta no es académica, indícale cordialmente que no puedes ayudar.` }
-      ],
+    const result = await cfChatCompletion({
+      messages: conversationMessages,
       temperature: 0.7,
       max_tokens: 2048
     })
 
-    if (!content) return 'Lo siento, no pude procesar tu solicitud.'
+    const content = result?.response || result?.choices?.[0]?.message?.content || null
 
-    if (content.length > MAX_RESPONSE_CHARS) {
-      return content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada por límite de caracteres]*'
-    }
-    return content
+    return truncateResponse(content) || 'Lo siento, no pude procesar tu solicitud.'
   } catch (error) {
     console.error('AI service error:', error)
-    return 'Error al conectar con la IA. Verifica la configuración de Cloudflare.'
+    return 'Error al conectar con la IA. Intenta de nuevo más tarde.'
   }
 }

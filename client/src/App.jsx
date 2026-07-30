@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { SocketProvider } from './contexts/SocketContext'
+import { AgentProvider } from './contexts/AgentContext'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -54,7 +55,9 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <SocketProvider>
+          <AgentProvider>
             <AuthGate />
+          </AgentProvider>
           </SocketProvider>
         </AuthProvider>
       </ThemeProvider>
