@@ -23,7 +23,12 @@ export default function DirectMessages({ onViewProfile }) {
     if (!socket) return
     const handleDirectMessage = (msg) => {
       if (activeConv && msg.conversationId === activeConv.id) {
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          // Replace temp message if it exists, otherwise append
+          const filtered = prev.filter(m => !m.isTemp)
+          return [...filtered, msg]
+        })
       }
       loadConversations()
     }
@@ -51,7 +56,12 @@ export default function DirectMessages({ onViewProfile }) {
     setMsgLoading(true)
     try {
       const res = await api.get(`/direct-messages/conversations/${conv.id}/messages`)
-      setMessages(res.data)
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id))
+        const newMsgs = res.data.filter(m => !existingIds.has(m.id))
+        if (newMsgs.length === 0) return prev
+        return [...prev, ...newMsgs]
+      })
     } catch (err) {
       console.error('Error loading messages:', err)
     } finally {
@@ -74,12 +84,15 @@ export default function DirectMessages({ onViewProfile }) {
     if (!input.trim()) return
     const text = input.trim()
     setInput('')
+    // Optimistic UI: show immediately, socket will confirm same ID
+    const tempId = `temp-${Date.now()}`
+    setMessages(prev => [...prev, { id: tempId, senderId: user.id, contenido: text, createdAt: new Date().toISOString(), isTemp: true }])
     try {
-      const res = await api.post(`/direct-messages/conversations/${activeConv.id}/messages`, { contenido: text })
-      setMessages(prev => [...prev, res.data])
-      loadConversations()
+      await api.post(`/direct-messages/conversations/${activeConv.id}/messages`, { contenido: text })
+      // Socket broadcast handles the real message — remove temp when it arrives
     } catch (err) {
       console.error('Error sending DM:', err)
+      setMessages(prev => prev.filter(m => m.id !== tempId))
     }
   }
 
