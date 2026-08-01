@@ -1,76 +1,93 @@
 import prisma from '../lib/prisma.js'
-import { cfChatWithTools } from './cfAiService.js'
-import { AI_TOOLS, executeTool } from './aiToolDefinitions.js'
+import { cfChatCompletion } from './cfAiService.js'
 
 const SYSTEM_PROMPT = `Eres UnegAI, un asistente académico universitario inteligente para la plataforma Uneg-Link.
 
 CAPACIDADES:
 - Respondes preguntas académicas (programación, matemáticas, física, etc.)
-- Puedes consultar datos REALES de la materia usando herramientas: eventos, archivos, anuncios, tareas, quizzes, profesor
 - Explicas conceptos con ejemplos claros y didácticos
 
 COMPORTAMIENTO:
-- SIEMPRE usa las herramientas disponibles para consultar datos de la materia antes de responder sobre eventos, archivos, tareas o anuncios
-- Para preguntas académicas generales (conceptos, teoría), responde con tu conocimiento sin necesidad de herramientas
 - Sé formal, profesional y didáctico
-- NO inventes fechas, datos ni nombres. Si una herramienta no devuelve datos, dilo claramente
+- NO inventes fechas, datos ni nombres
 - Si la pregunta no es académica, indica cordialmente que solo ayudas con temas universitarios
 - Responde siempre en español`
 
 const MAX_RESPONSE_CHARS = 3000
 
-export async function generateAIResponse(messages, sectionSubjectId, question) {
+async function getSubjectContext(sectionSubjectId) {
   try {
     const sectionSubject = await prisma.sectionSubject.findUnique({
       where: { id: sectionSubjectId },
       include: {
         subject: true,
-        section: true
+        section: true,
+        files: { orderBy: { createdAt: 'desc' }, take: 10 },
+        events: { where: { fecha: { gte: new Date() } }, orderBy: { fecha: 'asc' }, take: 10 },
+        channels: {
+          where: { nombre: 'Anuncios' },
+          include: {
+            messages: {
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+              include: { user: { select: { nombre: true } } }
+            }
+          }
+        },
+        quizzes: { orderBy: { createdAt: 'desc' }, take: 5 }
       }
     })
 
-    const subjectName = sectionSubject
-      ? `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
-      : ''
+    if (!sectionSubject) return ''
 
-    const contextPrompt = sectionSubject
-      ? `\n\nCONTEXTO ACTUAL: El estudiante está en la materia "${subjectName}" (ID: ${sectionSubjectId}). Usa las herramientas para consultar datos reales de esta materia cuando sea necesario.`
-      : ''
+    const parts = []
+    const subjectName = `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
+    parts.push(`MATERIA: ${subjectName}`)
+
+    if (sectionSubject.files.length > 0) {
+      parts.push('\nARCHIVOS:\n' + sectionSubject.files.map(f => `- ${f.nombre} (${f.tipo})`).join('\n'))
+    }
+    if (sectionSubject.events.length > 0) {
+      parts.push('\nEVENTOS:\n' + sectionSubject.events.map(e =>
+        `- ${e.titulo}: ${new Date(e.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} (${e.tipo})${e.importante ? ' ⭐IMPORTANTE' : ''}`
+      ).join('\n'))
+    }
+    const announcements = sectionSubject.channels[0]?.messages || []
+    if (announcements.length > 0) {
+      parts.push('\nANUNCIOS:\n' + announcements.map(a => `- ${a.user?.nombre}: "${a.contenido?.slice(0, 150)}"`).join('\n'))
+    }
+    if (sectionSubject.quizzes?.length > 0) {
+      parts.push('\nQUIZZES:\n' + sectionSubject.quizzes.map(q => `- "${q.titulo}": ${q.descripcion || 'sin descripción'}`).join('\n'))
+    }
+
+    return parts.join('\n')
+  } catch (e) {
+    console.error('getSubjectContext error:', e.message)
+    return ''
+  }
+}
+
+export async function generateAIResponse(messages, sectionSubjectId, question) {
+  try {
+    const context = await getSubjectContext(sectionSubjectId)
+
+    const contextBlock = context ? `\n\nDATOS REALES DE LA MATERIA:\n${context}\n\nUsa estos datos para responder preguntas sobre la materia. Si la pregunta no está relacionada con estos datos, responde con tu conocimiento académico general.` : ''
 
     const historyMessages = messages
       .filter(m => m.isRelevant !== false && !m.isAI && m.contenido)
-      .slice(-10)
-      .map(m => ({ role: 'user', content: String(m.contenido) }))
+      .slice(-6)
+      .map(m => `Usuario: ${m.contenido}`)
+      .join('\n')
 
-    const systemMessage = {
-      role: 'system',
-      content: String(SYSTEM_PROMPT + contextPrompt)
-    }
+    const historyBlock = historyMessages ? `\n\nHISTORIAL RECIENTE:\n${historyMessages}` : ''
 
-    const userMessage = {
-      role: 'user',
-      content: String(question || '¿Cuál es el estado actual de la materia?')
-    }
+    const fullUserMessage = `${contextBlock}${historyBlock}\n\n---\nPREGUNTA DEL ESTUDIANTE: ${question || '¿Cuál es el estado actual de la materia?'}`
 
-    const allMessages = [systemMessage]
-    for (const m of historyMessages) {
-      const text = String(m.contenido || '')
-      if (text.trim()) {
-        allMessages.push({ role: 'user', content: text })
-      }
-    }
-    allMessages.push(userMessage)
-
-    const content = await cfChatWithTools({
-      messages: allMessages,
-      tools: AI_TOOLS.map(t => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters
-      })),
-      executeToolFn: async (name, args) => {
-        return executeTool(name, args)
-      },
+    const content = await cfChatCompletion({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: fullUserMessage }
+      ],
       temperature: 0.7,
       max_tokens: 2048
     })
