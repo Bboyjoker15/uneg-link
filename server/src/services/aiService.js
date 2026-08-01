@@ -38,21 +38,28 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
       : ''
 
     const historyMessages = messages
-      .filter(m => m.isRelevant !== false && !m.isAI)
+      .filter(m => m.isRelevant !== false && !m.isAI && m.contenido)
       .slice(-10)
-      .map(m => ({ role: 'user', content: m.contenido }))
+      .map(m => ({ role: 'user', content: String(m.contenido) }))
 
     const systemMessage = {
       role: 'system',
-      content: SYSTEM_PROMPT + contextPrompt
+      content: String(SYSTEM_PROMPT + contextPrompt)
     }
 
     const userMessage = {
       role: 'user',
-      content: question || '¿Cuál es el estado actual de la materia?'
+      content: String(question || '¿Cuál es el estado actual de la materia?')
     }
 
-    const allMessages = [systemMessage, ...historyMessages, userMessage]
+    const allMessages = [systemMessage]
+    for (const m of historyMessages) {
+      const text = String(m.contenido || '')
+      if (text.trim()) {
+        allMessages.push({ role: 'user', content: text })
+      }
+    }
+    allMessages.push(userMessage)
 
     const content = await cfChatWithTools({
       messages: allMessages,
