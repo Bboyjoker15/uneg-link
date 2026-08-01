@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authenticate, requireRole } from '../middleware/auth.js'
 import { generateAIResponse } from '../services/aiService.js'
 import { cfChatCompletion } from '../services/cfAiService.js'
+import { extractTextFromFile } from '../services/fileExtractor.js'
 import prisma from '../lib/prisma.js'
 
 const router = Router()
@@ -46,8 +47,15 @@ router.post('/announcement', authenticate, requireRole('PROFESOR'), async (req, 
     const contextParts = [`INFORMACIÓN DE LA MATERIA:\nNombre: ${subjectName}\nCódigo: ${sectionSubject.subject.codigo}`]
 
     if (sectionSubject.files.length > 0) {
-      contextParts.push('\nMATERIALES Y CONTENIDOS DISPONIBLES:\n' +
-        sectionSubject.files.map(f => `- ${f.nombre} (${f.tipo})`).join('\n'))
+      const fileParts = []
+      for (const f of sectionSubject.files) {
+        fileParts.push(`- ${f.nombre} (${f.tipo})`)
+        const extracted = await extractTextFromFile(f.url, f.tipo)
+        if (extracted) {
+          fileParts.push(`  Contenido: ${extracted.slice(0, 1500)}`)
+        }
+      }
+      contextParts.push('\nMATERIALES Y CONTENIDOS DISPONIBLES:\n' + fileParts.join('\n'))
     }
 
     if (sectionSubject.events.length > 0) {
@@ -131,7 +139,15 @@ router.post('/generate-quiz', authenticate, requireRole('PROFESOR'), async (req,
     const subjectName = `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
     const contextParts = [`MATERIA: ${subjectName} (${sectionSubject.subject.codigo})`]
     if (sectionSubject.files.length > 0) {
-      contextParts.push('\nMATERIALES DE LA MATERIA:\n' + sectionSubject.files.map(f => `- ${f.nombre}`).join('\n'))
+      const fileParts = []
+      for (const f of sectionSubject.files) {
+        fileParts.push(`- ${f.nombre}`)
+        const extracted = await extractTextFromFile(f.url, f.tipo)
+        if (extracted) {
+          fileParts.push(`  Contenido: ${extracted.slice(0, 1500)}`)
+        }
+      }
+      contextParts.push('\nMATERIALES DE LA MATERIA:\n' + fileParts.join('\n'))
     }
     if (sectionSubject.events.length > 0) {
       contextParts.push('\nEVENTOS:\n' + sectionSubject.events.map(e => `- ${e.titulo} (${e.tipo})`).join('\n'))

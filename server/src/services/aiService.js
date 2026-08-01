@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma.js'
 import { cfChatCompletion } from './cfAiService.js'
+import { extractTextFromFile } from './fileExtractor.js'
 
 const TOOLS = [
   { name: 'get_events', desc: 'Próximos eventos del calendario (exámenes, entregas)', params: { sectionSubjectId: 'string' } },
@@ -50,7 +51,16 @@ async function executeTool(name, args) {
         where: { sectionSubjectId: ssId }, orderBy: { createdAt: 'desc' }
       })
       if (!files.length) return 'No hay archivos subidos.'
-      return files.map(f => `- ${f.nombre} (${f.tipo}) - ${new Date(f.createdAt).toLocaleDateString('es-ES')}`).join('\n')
+
+      const parts = ['ARCHIVOS DISPONIBLES:']
+      for (const f of files) {
+        parts.push(`- ${f.nombre} (${f.tipo}) — ${new Date(f.createdAt).toLocaleDateString('es-ES')}`)
+        const extracted = await extractTextFromFile(f.url, f.tipo)
+        if (extracted) {
+          parts.push(`  CONTENIDO: ${extracted}`)
+        }
+      }
+      return parts.join('\n')
     }
     case 'get_announcements': {
       const channel = await prisma.channel.findFirst({
