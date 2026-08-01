@@ -403,97 +403,103 @@ export default function Dashboard() {
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)]">
       <OfflineBanner />
-        <header className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
-          <button onClick={() => setShowProfile(false)} className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">UL</span>
+        <header className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
+          <button onClick={() => { setShowProfile(false); setShowDMs(false) }} className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowMobileSidebar(!showMobileSidebar) }}
+              className="sm:hidden p-1.5 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]"
+            >
+              <FiChevronDown size={18} />
+            </button>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs sm:text-sm font-bold">UL</span>
             </div>
-            <h1 className="text-lg font-bold text-[var(--color-text-primary)]">Uneg-Link</h1>
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <h1 className="text-base sm:text-lg font-bold text-[var(--color-text-primary)] hidden sm:block">Uneg-Link</h1>
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 overflow-x-auto">
             <button
               onClick={() => { setShowProfile(true); setShowDMs(false) }}
-              className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 p-1 pr-1.5 sm:pr-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors flex-shrink-0"
             >
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium overflow-hidden">
                 {user.avatar ? (
                   <img src={user.avatar} alt="" className="w-full h-full object-cover" />
                 ) : (
                   user.nombre?.[0]
                 )}
               </div>
-              <div className="text-sm text-left">
-                <p className="font-medium leading-tight">{user.nombre}</p>
+              <div className="hidden sm:block text-sm text-left">
+                <p className="font-medium leading-tight truncate max-w-[120px]">{user.nombre}</p>
                 <p className="text-xs text-[var(--color-text-secondary)]">{user.role === 'PROFESOR' ? 'Profesor' : 'Estudiante'}</p>
               </div>
             </button>
             <NotificationBell socket={socket} onNotificationClick={handleNotificationClick} />
-            <button onClick={() => { setShowDMs(!showDMs); setShowProfile(false) }} className={`p-2 rounded-lg transition-colors ${showDMs ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}`} title="Mensajes directos">
-              <FiMessageCircle size={18} />
+            <button onClick={() => { setShowDMs(!showDMs); setShowProfile(false) }} className={`p-1.5 sm:p-2 rounded-lg transition-colors flex-shrink-0 ${showDMs ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}`} title="Mensajes directos">
+              <FiMessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
             {user?.role === 'ADMIN' && (
-              <button onClick={() => navigate('/admin')} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors" title="Panel Admin">
-                <FiShield size={18} />
+              <button onClick={() => navigate('/admin')} className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors flex-shrink-0" title="Panel Admin">
+                <FiShield size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             )}
-            <button onClick={toggle} className="p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors">
-              {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
+            <button onClick={toggle} className="p-1.5 sm:p-2 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] transition-colors flex-shrink-0">
+              {theme === 'light' ? <FiMoon size={16} className="sm:w-[18px] sm:h-[18px]" /> : <FiSun size={16} className="sm:w-[18px] sm:h-[18px]" />}
             </button>
-            <button onClick={handleLogout} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors">
-              <FiLogOut size={18} />
+            <button onClick={handleLogout} className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-secondary)] hover:text-red-600 transition-colors flex-shrink-0">
+              <FiLogOut size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </div>
         </header>
 
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] overflow-x-auto">
+      <div className="flex items-center gap-1 px-3 sm:px-6 py-1.5 sm:py-2 border-b border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] overflow-x-auto scrollbar-none">
         <button
           onClick={() => { setActiveTab('home'); setError('') }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
             activeTab === 'home'
               ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
               : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]'
           }`}
         >
-          <FiHome size={16} />
+          <FiHome size={14} className="sm:w-[16px] sm:h-[16px]" />
           Inicio
         </button>
         {subjects.map(subject => (
           <button
             key={subject.id}
             onClick={() => selectSubject(subject)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
               activeSubject?.id === subject.id && activeTab !== 'home'
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                 : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]'
             }`}
           >
-            <FiBookOpen size={16} />
+            <FiBookOpen size={14} className="sm:w-[16px] sm:h-[16px]" />
             {subject.nombre}
-            <span className="text-xs opacity-60">{subject.sectionCodigo}</span>
+            <span className="text-[10px] sm:text-xs opacity-60">{subject.sectionCodigo}</span>
           </button>
         ))}
       </div>
 
       {showProfile ? null : activeTab !== 'home' && activeSubject && (
-        <div className="flex items-center gap-1 px-2 sm:px-6 py-1.5 border-b border-[var(--color-border-default)] bg-[var(--color-bg)] overflow-x-auto">
+        <div className="flex items-center gap-1 px-2 sm:px-6 py-1 border-b border-[var(--color-border-default)] bg-[var(--color-bg)] overflow-x-auto scrollbar-none">
           <button
             onClick={() => setShowMobileSidebar(!showMobileSidebar)}
-            className="sm:hidden p-1.5 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] mr-1 flex-shrink-0"
+            className="sm:hidden p-1 rounded-lg hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] flex-shrink-0"
           >
-            <FiChevronDown size={16} />
+            <FiChevronDown size={14} />
           </button>
           {SUB_TABS.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.key
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                   : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-secondary)]'
               }`}
             >
-              <tab.icon size={14} />
+              <tab.icon size={12} className="sm:w-[14px] sm:h-[14px]" />
               {tab.label}
             </button>
           ))}
@@ -507,10 +513,13 @@ export default function Dashboard() {
           <Profile onBack={() => setShowProfile(false)} />
         ) : activeTab !== 'home' && activeSubject && (
           <aside className={`${
-            showMobileSidebar ? 'fixed inset-0 z-40' : 'hidden'
-          } sm:flex sm:relative sm:w-60 border-r border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] flex-col`}>
+            showMobileSidebar ? 'fixed inset-0 z-40 flex flex-col bg-[var(--color-bg-secondary)] w-4/5 max-w-[280px]' : 'hidden'
+          } sm:flex sm:relative sm:w-52 lg:w-60 border-r border-[var(--color-border-default)] sm:bg-[var(--color-bg-secondary)] flex-col`}>
             {showMobileSidebar && (
-              <div className="sm:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)]">
+              <div className="sm:hidden fixed inset-0 bg-black/30 -z-10" onClick={() => setShowMobileSidebar(false)} />
+            )}
+            {showMobileSidebar && (
+              <div className="sm:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-default)] bg-[var(--color-bg)]">
                 <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Menú</h3>
                 <button onClick={() => setShowMobileSidebar(false)} className="p-1 rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]">
                   <FiX size={18} />

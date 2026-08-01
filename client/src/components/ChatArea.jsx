@@ -98,7 +98,12 @@ export default function ChatArea({ channel, sectionSubjectId, onViewProfile }) {
     try {
       setLoading(true)
       const res = await api.get(`/messages/${channel.id}`)
-      setMessages(res.data)
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id))
+        const newMsgs = res.data.filter(m => !existingIds.has(m.id))
+        if (newMsgs.length === 0) return prev
+        return [...prev, ...newMsgs]
+      })
     } catch (err) {
       console.error('Error loading messages:', err)
     } finally {
