@@ -52,7 +52,18 @@ async function cfCompletionRaw({ messages, tools, model, temperature = 0.7, max_
   for (const m of modelsToTry) {
     try {
       const body = { messages, max_tokens, temperature }
-      if (tools && tools.length > 0) body.tools = tools
+      if (tools && tools.length > 0) {
+        body.tools = tools.map(t => ({
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters
+          }
+        }))
+      }
+
+      console.log('[cfCompletionRaw] sending:', JSON.stringify({ msgCount: messages.length, toolCount: tools?.length || 0, firstContent: typeof messages[0]?.content }).slice(0, 200))
 
       const res = await fetch(`${CF_AI_URL}/${m}`, {
         method: 'POST',
