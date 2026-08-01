@@ -1,105 +1,158 @@
 import prisma from '../lib/prisma.js'
 import { cfChatCompletion } from './cfAiService.js'
 
-const SYSTEM_PROMPT = `Eres UnegAI, un asistente académico universitario inteligente para la plataforma Uneg-Link.
+const TOOLS = [
+  { name: 'get_events', desc: 'Próximos eventos del calendario (exámenes, entregas)', params: { sectionSubjectId: 'string' } },
+  { name: 'get_files', desc: 'Archivos y materiales disponibles', params: { sectionSubjectId: 'string' } },
+  { name: 'get_announcements', desc: 'Anuncios recientes del profesor', params: { sectionSubjectId: 'string' } },
+  { name: 'get_assignments', desc: 'Tareas pendientes de la materia', params: { sectionSubjectId: 'string' } },
+  { name: 'get_quizzes', desc: 'Quizzes y evaluaciones disponibles', params: { sectionSubjectId: 'string' } },
+  { name: 'get_professor', desc: 'Nombre y correo del profesor', params: { sectionSubjectId: 'string' } }
+]
 
-CAPACIDADES:
-- Respondes preguntas académicas (programación, matemáticas, física, etc.)
-- Explicas conceptos con ejemplos claros y didácticos
+const TOOLS_PROMPT = TOOLS.map(t =>
+  `- ${t.name}(${Object.keys(t.params).join(', ')}): ${t.desc}`
+).join('\n')
 
-COMPORTAMIENTO:
-- Sé formal, profesional y didáctico
-- NO inventes fechas, datos ni nombres
-- Si la pregunta no es académica, indica cordialmente que solo ayudas con temas universitarios
-- Responde siempre en español`
+const SYSTEM_PROMPT = `Eres UnegAI, asistente académico de Uneg-Link. Responde en español, formal y didáctico.
+
+Para consultar datos reales de la materia, debes devolver EXACTAMENTE un JSON con este formato (sin texto adicional):
+{"tool":"nombre_de_la_herramienta","args":{"sectionSubjectId":"ID_DE_LA_MATERIA"}}
+
+Herramientas disponibles:
+${TOOLS_PROMPT}
+
+Reglas:
+- Usa herramientas PARA CUALQUIER pregunta sobre eventos, archivos, tareas, anuncios, quizzes o profesor
+- Para preguntas académicas generales (teoría, conceptos), responde directamente SIN JSON
+- NO inventes datos. Si una herramienta no devuelve nada, dilo
+- Solo responde preguntas académicas`
 
 const MAX_RESPONSE_CHARS = 3000
 
-async function getSubjectContext(sectionSubjectId) {
-  try {
-    const sectionSubject = await prisma.sectionSubject.findUnique({
-      where: { id: sectionSubjectId },
-      include: {
-        subject: true,
-        section: true,
-        files: { orderBy: { createdAt: 'desc' }, take: 10 },
-        events: { where: { fecha: { gte: new Date() } }, orderBy: { fecha: 'asc' }, take: 10 },
-        channels: {
-          where: { nombre: 'Anuncios' },
-          include: {
-            messages: {
-              orderBy: { createdAt: 'desc' },
-              take: 5,
-              include: { user: { select: { nombre: true } } }
-            }
-          }
-        },
-        quizzes: { orderBy: { createdAt: 'desc' }, take: 5 }
-      }
-    })
+async function executeTool(name, args) {
+  const ssId = args.sectionSubjectId
+  if (!ssId) return 'Error: sectionSubjectId requerido'
 
-    if (!sectionSubject) return ''
-
-    const parts = []
-    const subjectName = `${sectionSubject.subject.nombre} - ${sectionSubject.section.codigo}`
-    parts.push(`MATERIA: ${subjectName}`)
-
-    if (sectionSubject.files.length > 0) {
-      parts.push('\nARCHIVOS:\n' + sectionSubject.files.map(f => `- ${f.nombre} (${f.tipo})`).join('\n'))
+  switch (name) {
+    case 'get_events': {
+      const events = await prisma.calendarEvent.findMany({
+        where: { sectionSubjectId: ssId, fecha: { gte: new Date() } },
+        orderBy: { fecha: 'asc' }
+      })
+      if (!events.length) return 'No hay eventos próximos.'
+      return events.map(e =>
+        `- ${e.titulo}: ${new Date(e.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} (${e.tipo})${e.importante ? ' ⭐IMPORTANTE' : ''}${e.descripcion ? ' - ' + e.descripcion : ''}`
+      ).join('\n')
     }
-    if (sectionSubject.events.length > 0) {
-      parts.push('\nEVENTOS:\n' + sectionSubject.events.map(e =>
-        `- ${e.titulo}: ${new Date(e.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} (${e.tipo})${e.importante ? ' ⭐IMPORTANTE' : ''}`
-      ).join('\n'))
+    case 'get_files': {
+      const files = await prisma.file.findMany({
+        where: { sectionSubjectId: ssId }, orderBy: { createdAt: 'desc' }
+      })
+      if (!files.length) return 'No hay archivos subidos.'
+      return files.map(f => `- ${f.nombre} (${f.tipo}) - ${new Date(f.createdAt).toLocaleDateString('es-ES')}`).join('\n')
     }
-    const announcements = sectionSubject.channels[0]?.messages || []
-    if (announcements.length > 0) {
-      parts.push('\nANUNCIOS:\n' + announcements.map(a => `- ${a.user?.nombre}: "${a.contenido?.slice(0, 150)}"`).join('\n'))
+    case 'get_announcements': {
+      const channel = await prisma.channel.findFirst({
+        where: { sectionSubjectId: ssId, nombre: 'Anuncios' }
+      })
+      if (!channel) return 'No hay canal de anuncios.'
+      const msgs = await prisma.message.findMany({
+        where: { channelId: channel.id }, orderBy: { createdAt: 'desc' }, take: 10,
+        include: { user: { select: { nombre: true } } }
+      })
+      if (!msgs.length) return 'No hay anuncios.'
+      return msgs.map(m => `- ${m.user?.nombre || 'Prof'}: "${m.contenido?.slice(0, 200)}"`).join('\n')
     }
-    if (sectionSubject.quizzes?.length > 0) {
-      parts.push('\nQUIZZES:\n' + sectionSubject.quizzes.map(q => `- "${q.titulo}": ${q.descripcion || 'sin descripción'}`).join('\n'))
+    case 'get_assignments': {
+      const assignments = await prisma.assignment.findMany({
+        where: { sectionSubjectId: ssId }, orderBy: { fechaLimite: 'asc' }
+      })
+      if (!assignments.length) return 'No hay tareas.'
+      return assignments.map(a =>
+        `- ${a.titulo}${a.descripcion ? ': ' + a.descripcion : ''}${a.fechaLimite ? ' - Entrega: ' + new Date(a.fechaLimite).toLocaleDateString('es-ES') : ''}`
+      ).join('\n')
     }
-
-    return parts.join('\n')
-  } catch (e) {
-    console.error('getSubjectContext error:', e.message)
-    return ''
+    case 'get_quizzes': {
+      const quizzes = await prisma.quiz.findMany({
+        where: { sectionSubjectId: ssId }, orderBy: { createdAt: 'desc' }
+      })
+      if (!quizzes.length) return 'No hay quizzes.'
+      return quizzes.map(q => `- ${q.titulo}${q.descripcion ? ': ' + q.descripcion : ''} (${q.maxAttempts} intentos)`).join('\n')
+    }
+    case 'get_professor': {
+      const ss = await prisma.sectionSubject.findUnique({
+        where: { id: ssId },
+        include: { profesor: { select: { nombre: true, email: true } }, subject: { select: { nombre: true } }, section: { select: { codigo: true } } }
+      })
+      if (!ss?.profesor) return 'Profesor no encontrado.'
+      return `Prof. ${ss.profesor.nombre} - ${ss.subject.nombre} (${ss.section.codigo})${ss.profesor.email ? ' - ' + ss.profesor.email : ''}`
+    }
+    default:
+      return `Herramienta "${name}" no encontrada`
   }
+}
+
+function detectToolCall(text) {
+  try {
+    const trimmed = text.trim()
+    const match = trimmed.match(/\{[\s\S]*"tool"[\s\S]*\}/)
+    if (match) {
+      const parsed = JSON.parse(match[0])
+      if (parsed.tool && TOOLS.some(t => t.name === parsed.tool)) {
+        return { tool: parsed.tool, args: parsed.args || {} }
+      }
+    }
+  } catch (_) {}
+  return null
 }
 
 export async function generateAIResponse(messages, sectionSubjectId, question) {
   try {
-    const context = await getSubjectContext(sectionSubjectId)
-
-    const contextBlock = context ? `\n\nDATOS REALES DE LA MATERIA:\n${context}\n\nUsa estos datos para responder preguntas sobre la materia. Si la pregunta no está relacionada con estos datos, responde con tu conocimiento académico general.` : ''
-
-    const historyMessages = messages
+    const history = messages
       .filter(m => m.isRelevant !== false && !m.isAI && m.contenido)
       .slice(-6)
-      .map(m => `Usuario: ${m.contenido}`)
-      .join('\n')
+      .map(m => ({ role: 'user', content: `[Historial] ${m.contenido}` }))
 
-    const historyBlock = historyMessages ? `\n\nHISTORIAL RECIENTE:\n${historyMessages}` : ''
+    const askMessages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...history,
+      { role: 'user', content: `ID de la materia: ${sectionSubjectId}\nPregunta: ${question || '¿Cuál es el estado actual de la materia?'}` }
+    ]
 
-    const fullUserMessage = `${contextBlock}${historyBlock}\n\n---\nPREGUNTA DEL ESTUDIANTE: ${question || '¿Cuál es el estado actual de la materia?'}`
-
-    const content = await cfChatCompletion({
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: fullUserMessage }
-      ],
+    // Step 1: ask the model — might return tool call JSON or direct answer
+    let response = await cfChatCompletion({
+      messages: askMessages,
       temperature: 0.7,
       max_tokens: 2048
     })
 
-    if (!content) return 'Lo siento, no pude procesar tu solicitud.'
+    // Step 2: check if the model wants to call a tool
+    let iterations = 0
+    while (iterations < 2 && response) {
+      const toolCall = detectToolCall(response)
+      if (!toolCall) break
 
-    if (content.length > MAX_RESPONSE_CHARS) {
-      return content.slice(0, content.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada por límite de caracteres]*'
+      iterations++
+      const toolResult = await executeTool(toolCall.tool, toolCall.args)
+
+      askMessages.push({ role: 'assistant', content: `Llamé a ${toolCall.tool}(${JSON.stringify(toolCall.args)})` })
+      askMessages.push({ role: 'user', content: `Resultado de ${toolCall.tool}:\n${toolResult}\n\nResponde la pregunta original basándote en estos datos.` })
+
+      response = await cfChatCompletion({
+        messages: askMessages,
+        temperature: 0.7,
+        max_tokens: 2048
+      })
     }
-    return content
+
+    if (!response) return 'Lo siento, no pude procesar tu solicitud.'
+    if (response.length > MAX_RESPONSE_CHARS) {
+      return response.slice(0, response.lastIndexOf(' ', MAX_RESPONSE_CHARS)) + '\n\n*[Respuesta truncada]*'
+    }
+    return response
   } catch (error) {
     console.error('AI service error:', error)
-    return 'Error al conectar con la IA. Verifica la configuración de Cloudflare.'
+    return 'Error al conectar con la IA.'
   }
 }
