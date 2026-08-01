@@ -139,7 +139,7 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
 
     // Step 2: check if the model wants to call a tool
     let iterations = 0
-    while (iterations < 2 && response) {
+    while (iterations < 3 && response) {
       const toolCall = detectToolCall(response)
       if (!toolCall) break
 
@@ -154,6 +154,11 @@ export async function generateAIResponse(messages, sectionSubjectId, question) {
         temperature: 0.7,
         max_tokens: 2048
       })
+    }
+
+    // If model still returned a tool call instead of text, handle it
+    if (response && detectToolCall(response)) {
+      return 'He consultado los datos pero no pude formular una respuesta. Intenta ser más específico en tu pregunta.'
     }
 
     if (!response) return 'Lo siento, no pude procesar tu solicitud.'

@@ -292,7 +292,7 @@ router.post('/ask', authenticate, async (req, res) => {
 
     const userMessage = await prisma.message.create({
       data: {
-        contenido: question,
+        contenido: String(question),
         userId: req.user.id,
         channelId,
         isRelevant: true
